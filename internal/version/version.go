@@ -20,12 +20,12 @@ func Get() string {
 		if info, ok := debug.ReadBuildInfo(); ok {
 			for _, dep := range info.Deps {
 				// If used as a library, find our own module version
-				if dep.Path == "github.com/soymadip/autotitle" {
+				if dep.Path == "github.com/mydehq/autotitle" {
 					return dep.Version
 				}
 			}
 			// If running from source (go run), main module info might be available
-			if info.Main.Path == "github.com/soymadip/autotitle" {
+			if info.Main.Path == "github.com/mydehq/autotitle" {
 				return info.Main.Version
 			}
 		}

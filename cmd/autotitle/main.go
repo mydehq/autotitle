@@ -5,11 +5,11 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/soymadip/autotitle/internal/api"
-	"github.com/soymadip/autotitle/internal/database"
-	"github.com/soymadip/autotitle/internal/fetcher"
-	"github.com/soymadip/autotitle/internal/logger"
-	"github.com/soymadip/autotitle/internal/version"
+	"github.com/mydehq/autotitle/internal/api"
+	"github.com/mydehq/autotitle/internal/database"
+	"github.com/mydehq/autotitle/internal/fetcher"
+	"github.com/mydehq/autotitle/internal/logger"
+	"github.com/mydehq/autotitle/internal/version"
 
 	"github.com/spf13/cobra"
 )

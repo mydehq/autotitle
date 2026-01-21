@@ -10,8 +10,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/soymadip/autotitle/internal/logger"
-	"github.com/soymadip/autotitle/internal/util"
+	"github.com/mydehq/autotitle/internal/logger"
+	"github.com/mydehq/autotitle/internal/util"
 	"golang.org/x/net/html"
 )
 

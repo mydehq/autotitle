@@ -47,7 +47,7 @@
 ### Installation
 
 ```bash
-go get github.com/soymadip/autotitle
+go get github.com/mydehq/autotitle
 ```
 
 ### Basic Usage
@@ -716,7 +716,7 @@ For advanced use cases, you can import internal packages directly.
 The `matcher` package provides pattern detection and filename generation utilities:
 
 ```go
-import "github.com/soymadip/autotitle/internal/matcher"
+import "github.com/mydehq/autotitle/internal/matcher"
 
 // Detect pattern from filename
 pattern := matcher.GuessPattern("Episode 01 1080p.mkv")
@@ -748,7 +748,7 @@ newName := matcher.GenerateFilename(
 The `config` package provides configuration file loading:
 
 ```go
-import "github.com/soymadip/autotitle/internal/config"
+import "github.com/mydehq/autotitle/internal/config"
 
 // Load global configuration
 globalCfg, err := config.LoadGlobal("")
@@ -774,7 +774,7 @@ if err != nil {
 The `database` package provides direct database access:
 
 ```go
-import "github.com/soymadip/autotitle/internal/database"
+import "github.com/mydehq/autotitle/internal/database"
 
 // Create database instance
 db, err := database.New("")  // empty string = default directory
@@ -808,8 +808,8 @@ Internal packages are designed to be testable. Consider creating tests for your 
 
 ```go
 import (
-    "github.com/soymadip/autotitle/internal/matcher"
-    "github.com/soymadip/autotitle/internal/config"
+    "github.com/mydehq/autotitle/internal/matcher"
+    "github.com/mydehq/autotitle/internal/config"
 )
 
 func TestMyIntegration(t *testing.T) {

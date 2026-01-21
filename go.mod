@@ -1,4 +1,4 @@
-module github.com/soymadip/autotitle
+module github.com/mydehq/autotitle
 
 go 1.25.5
 

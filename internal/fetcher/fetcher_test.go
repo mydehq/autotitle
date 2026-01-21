@@ -3,7 +3,7 @@ package fetcher_test
 import (
 	"testing"
 
-	"github.com/soymadip/autotitle/internal/fetcher"
+	"github.com/mydehq/autotitle/internal/fetcher"
 )
 
 func TestExtractMALID(t *testing.T) {

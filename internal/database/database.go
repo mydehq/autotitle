@@ -9,8 +9,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/soymadip/autotitle/internal/fetcher"
-	"github.com/soymadip/autotitle/internal/util"
+	"github.com/mydehq/autotitle/internal/fetcher"
+	"github.com/mydehq/autotitle/internal/util"
 )
 
 type SearchResult struct {

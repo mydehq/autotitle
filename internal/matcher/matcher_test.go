@@ -4,7 +4,7 @@ import (
 	"log"
 	"testing"
 
-	"github.com/soymadip/autotitle/internal/matcher"
+	"github.com/mydehq/autotitle/internal/matcher"
 )
 
 func TestGuessPattern(t *testing.T) {

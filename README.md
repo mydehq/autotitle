@@ -17,13 +17,13 @@ A CLI tool & Go library for automatically renaming anime episodes with proper ti
 ### As CLI Tool
 
 ```bash
-go install github.com/soymadip/autotitle/cmd/autotitle@latest
+go install github.com/mydehq/autotitle/cmd/autotitle@latest
 ```
 
 Or clone and build:
 
 ```bash
-git clone https://github.com/soymadip/autotitle.git && cd autotitle
+git clone https://github.com/mydehq/autotitle.git && cd autotitle
 make install
 
 autotitle --help
@@ -32,7 +32,7 @@ autotitle --help
 ### As Library
 
 ```bash
-go get github.com/soymadip/autotitle
+go get github.com/mydehq/autotitle
 ```
 
 ## Quick Start

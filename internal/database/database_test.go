@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/soymadip/autotitle/internal/database"
+	"github.com/mydehq/autotitle/internal/database"
 )
 
 func TestNewAndLoadSave(t *testing.T) {

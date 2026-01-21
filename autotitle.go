@@ -7,10 +7,10 @@
 package autotitle
 
 import (
-	"github.com/soymadip/autotitle/internal/api"
-	"github.com/soymadip/autotitle/internal/database"
-	"github.com/soymadip/autotitle/internal/fetcher"
-	"github.com/soymadip/autotitle/internal/version"
+	"github.com/mydehq/autotitle/internal/api"
+	"github.com/mydehq/autotitle/internal/database"
+	"github.com/mydehq/autotitle/internal/fetcher"
+	"github.com/mydehq/autotitle/internal/version"
 )
 
 // Re-export all types from internal/api
