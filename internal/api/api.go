@@ -6,8 +6,6 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"regexp"
-	"strconv"
 
 	"github.com/soymadip/autotitle/internal/config"
 	"github.com/soymadip/autotitle/internal/database"
@@ -15,20 +13,6 @@ import (
 	"github.com/soymadip/autotitle/internal/matcher"
 	"github.com/soymadip/autotitle/internal/renamer"
 )
-
-// Extracts the MAL ID from a MyAnimeList URL
-func ExtractMALID(url string) int {
-
-	re := regexp.MustCompile(`myanimelist\.net/anime/(\d+)`)
-	matches := re.FindStringSubmatch(url)
-
-	if len(matches) > 1 {
-		if id, err := strconv.Atoi(matches[1]); err == nil {
-			return id
-		}
-	}
-	return 0
-}
 
 // Option is a functional option for configuring operations
 type Option func(*Options)
@@ -201,7 +185,7 @@ func DBGen(malURL string, opts ...func(*DBGenOptions)) error {
 	f := fetcher.New(rateLimit, 30)
 
 	// Extract MAL ID from URL
-	malID := ExtractMALID(options.MALURL)
+	malID := fetcher.ExtractMALID(options.MALURL)
 	if malID == 0 {
 		return fmt.Errorf("failed to extract MAL ID from URL: %s", options.MALURL)
 	}
@@ -433,54 +417,13 @@ func DBRm(seriesID string, outputDir string, deleteAll bool) error {
 	return nil
 }
 
-type Match struct {
-	MALID        string
-	Title        string
-	EpisodeCount int
-}
-
-func FindSeriesByQuery(query string, outputDir string) ([]Match, error) {
+func FindSeriesByQuery(query string, outputDir string) ([]database.SearchResult, error) {
 	db, err := database.New(outputDir)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create database: %w", err)
 	}
 
-	ids, err := db.List()
-	if err != nil {
-		return nil, fmt.Errorf("failed to list databases: %w", err)
-	}
-
-	var matches []Match
-	querySlug := fetcher.GenerateSlug(query)
-
-	for _, id := range ids {
-		sd, err := db.Load(id)
-		if err != nil {
-			continue // Skip malformed db files
-		}
-
-		if sd.MALID == query || sd.Slug == querySlug {
-			matches = append(matches, Match{
-				MALID:        sd.MALID,
-				Title:        sd.Title,
-				EpisodeCount: sd.EpisodeCount,
-			})
-			continue
-		}
-
-		for _, alias := range sd.Aliases {
-			if fetcher.GenerateSlug(alias) == querySlug {
-				matches = append(matches, Match{
-					MALID:        sd.MALID,
-					Title:        sd.Title,
-					EpisodeCount: sd.EpisodeCount,
-				})
-				break
-			}
-		}
-	}
-
-	return matches, nil
+	return db.Find(query)
 }
 
 // Re-export commonly used types and functions from subpackages

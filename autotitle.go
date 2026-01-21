@@ -8,6 +8,8 @@ package autotitle
 
 import (
 	"github.com/soymadip/autotitle/internal/api"
+	"github.com/soymadip/autotitle/internal/database"
+	"github.com/soymadip/autotitle/internal/fetcher"
 	"github.com/soymadip/autotitle/internal/version"
 )
 
@@ -20,6 +22,7 @@ type (
 	TemplateVars = api.TemplateVars
 	EpisodeData  = api.EpisodeData
 	SeriesData   = api.SeriesData
+	SearchResult = database.SearchResult
 )
 
 // Re-export all option constructors
@@ -44,7 +47,7 @@ var (
 	DBInfo         = api.DBInfo
 	DBRm           = api.DBRm
 	CompilePattern = api.CompilePattern
-	ExtractMALID   = api.ExtractMALID
+	ExtractMALID   = fetcher.ExtractMALID
 )
 
 // Version returns the version string of the library.

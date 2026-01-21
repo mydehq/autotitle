@@ -6,10 +6,18 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+	"strings"
 	"time"
 
+	"github.com/soymadip/autotitle/internal/fetcher"
 	"github.com/soymadip/autotitle/internal/util"
 )
+
+type SearchResult struct {
+	MALID        string
+	Title        string
+	EpisodeCount int
+}
 
 type EpisodeData struct {
 	Number  int       `json:"number"`
@@ -196,6 +204,58 @@ func (db *DB) List() ([]string, error) {
 		}
 	}
 	return ids, nil
+}
+
+func (db *DB) Find(query string) ([]SearchResult, error) {
+	ids, err := db.List()
+	if err != nil {
+		return nil, err
+	}
+
+	var matches []SearchResult
+	querySlug := fetcher.GenerateSlug(query)
+
+	for _, id := range ids {
+		sd, err := db.Load(id)
+		if err != nil {
+			continue // Skip malformed db files
+		}
+
+		// 1. Exact matches (ID or Slug)
+		if sd.MALID == query || sd.Slug == querySlug {
+			matches = append(matches, SearchResult{
+				MALID:        sd.MALID,
+				Title:        sd.Title,
+				EpisodeCount: sd.EpisodeCount,
+			})
+			continue
+		}
+
+		// 2. Fuzzy/Partial matches on Title or Aliases
+		// Check Main Title
+		if strings.Contains(strings.ToLower(sd.Title), strings.ToLower(query)) {
+			matches = append(matches, SearchResult{
+				MALID:        sd.MALID,
+				Title:        sd.Title,
+				EpisodeCount: sd.EpisodeCount,
+			})
+			continue
+		}
+
+		// Check Aliases
+		for _, alias := range sd.Aliases {
+			if strings.Contains(strings.ToLower(alias), strings.ToLower(query)) {
+				matches = append(matches, SearchResult{
+					MALID:        sd.MALID,
+					Title:        sd.Title,
+					EpisodeCount: sd.EpisodeCount,
+				})
+				break
+			}
+		}
+	}
+
+	return matches, nil
 }
 
 func ParseRanges(s string) ([]int, error) {

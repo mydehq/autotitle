@@ -132,8 +132,8 @@ autotitle clean <path>        # Remove backup directory
 autotitle db gen <mal_url|mal_id>    # Generate database (writes extended DB; prints title/episode count)
 autotitle db path                    # Show database directory
 autotitle db list                    # List all cached databases (shows MAL ID and stored title)
-autotitle db info <id|url|query>     # Show database info; accepts MAL ID, MAL URL, or title/slug query
-autotitle db rm <id|url|query>       # Remove specific database; accepts MAL ID, MAL URL, or title/slug query
+autotitle db info <id|url|query>     # Show database info; searches by fuzzy title/slug (interactive if ambiguous)
+autotitle db rm <id|url|query>       # Remove specific database; searches by fuzzy title/slug (interactive if ambiguous)
 autotitle db rm -a                   # Remove all databases
 ```
 

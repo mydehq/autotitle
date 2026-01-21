@@ -6,6 +6,8 @@ import (
 	"path/filepath"
 
 	"github.com/soymadip/autotitle/internal/api"
+	"github.com/soymadip/autotitle/internal/database"
+	"github.com/soymadip/autotitle/internal/fetcher"
 	"github.com/soymadip/autotitle/internal/logger"
 	"github.com/soymadip/autotitle/internal/version"
 
@@ -200,7 +202,7 @@ func runDBGen(cmd *cobra.Command, args []string) {
 	}
 
 	// Extract MAL ID and load database info for success message
-	malID := api.ExtractMALID(malURL)
+	malID := fetcher.ExtractMALID(malURL)
 	if malID > 0 {
 		seriesID := fmt.Sprintf("%d", malID)
 		if sd, err := api.DBInfo(seriesID, flagOutput); err == nil {
@@ -247,14 +249,20 @@ func runDBInfo(cmd *cobra.Command, args []string) {
 		logger.Fatal("No database found for query: %s", query)
 	}
 
-	var match api.Match
+	var match database.SearchResult
 	if len(matches) > 1 {
 		logger.Info("Multiple matches found, please select one:")
 		for i, m := range matches {
-			fmt.Printf("%d: %s (%s)\n", i+1, m.Title, m.MALID)
+			fmt.Printf("  %d. %s (%s)\n", i+1, m.Title, m.MALID)
 		}
-		// Simple selection for now, can be improved with interactive prompt
-		logger.Fatal("Ambiguous query, please be more specific or use MAL ID.")
+		
+		fmt.Printf("Enter selection [1-%d]: ", len(matches))
+		var selection int
+		_, err := fmt.Scanln(&selection)
+		if err != nil || selection < 1 || selection > len(matches) {
+			logger.Fatal("Invalid selection")
+		}
+		match = matches[selection-1]
 	} else {
 		match = matches[0]
 	}
@@ -293,12 +301,20 @@ func runDBRm(cmd *cobra.Command, args []string) {
 		logger.Fatal("No database found for query: %s", query)
 	}
 
-	var match api.Match
+	var match database.SearchResult
 	if len(matches) > 1 {
 		logger.Info("Multiple matches found, please select one:")
 		for i, m := range matches {
 			fmt.Printf("%d: %s (%s)\n", i+1, m.Title, m.MALID)
 		}
+		
+		fmt.Printf("Enter selection [1-%d]: ", len(matches))
+		var selection int
+		_, err := fmt.Scanln(&selection)
+		if err != nil || selection < 1 || selection > len(matches) {
+			logger.Fatal("Invalid selection")
+		}
+		match = matches[selection-1]
 		logger.Fatal("Ambiguous query, please be more specific or use MAL ID.")
 	} else {
 		match = matches[0]

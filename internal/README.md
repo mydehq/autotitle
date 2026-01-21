@@ -481,6 +481,12 @@ type SeriesData struct {
     TitleJapanese string              // Jikan title_japanese (optional)
     TitleSynonyms []string            // Jikan title_synonyms (optional)
 }
+
+type SearchResult struct {
+	MALID        string
+	Title        string
+	EpisodeCount int
+}
 ```
 
 **Stored in Database File:**
@@ -613,6 +619,7 @@ Database persistence and retrieval for episode data.
 - `Delete(seriesID string) error` - Delete a database file
 - `DeleteAll() error` - Delete all database files
 - `Exists(seriesID string) bool` - Check if database exists
+- `Find(query string) ([]SearchResult, error)` - Fuzzy search for series
 
 **Storage:**
 
