@@ -20,7 +20,7 @@ formats: [mkv, mp4, avi, webm, m4v, ts, flv]
 # API settings
 api:
   # api rate limit (requests per second)
-  rate_limit: 3
+  rate_limit: 2
 
   # HTTP/api timeout in seconds
   timeout: 30

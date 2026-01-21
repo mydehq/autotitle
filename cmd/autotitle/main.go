@@ -20,10 +20,11 @@ var (
 	flagConfig   string
 	flagOutput   string
 
-	flagAnime  string
-	flagFiller string
-	flagForce  bool
-	flagAll    bool 
+	flagAnime     string
+	flagFiller    string
+	flagForce     bool
+	flagAll       bool
+	flagRateLimit int
 
 	Version = "v0.1.0"
 )
@@ -71,6 +72,7 @@ func main() {
 	dbGenCmd.Flags().StringVarP(&flagFiller, "filler", "F", "", "AnimeFillerList URL or slug")
 	dbGenCmd.Flags().StringVarP(&flagOutput, "output", "o", "", "Output directory")
 	dbGenCmd.Flags().BoolVarP(&flagForce, "force", "f", false, "Overwrite existing database")
+	dbGenCmd.Flags().IntVarP(&flagRateLimit, "rate-limit", "r", 0, "API rate limit (requests per second)")
 
 	dbListCmd := &cobra.Command{
 		Use:   "list",
@@ -190,6 +192,8 @@ func runDBGen(cmd *cobra.Command, args []string) {
 		o.AFLURL = flagFiller
 		o.OutputDir = flagOutput
 		o.Force = flagForce
+		o.RateLimit = flagRateLimit
+		o.ConfigPath = flagConfig
 	}
 
 	if err := api.DBGen(malURL, opts); err != nil {

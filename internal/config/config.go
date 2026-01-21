@@ -53,7 +53,7 @@ func DefaultGlobalConfig() GlobalConfig {
 		Formats: []string{"mkv", "mp4", "avi", "webm", "m4v", "ts", "flv"},
 		Output:  "{{SERIES}} {{EP_NUM}} {{FILLER}} - {{EP_NAME}}.{{EXT}}",
 		API: APIConfig{
-			RateLimit: 3,
+			RateLimit: 1,
 			Timeout:   30,
 		},
 		Backup: BackupConfig{

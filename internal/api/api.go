@@ -43,6 +43,7 @@ type Options struct {
 	Force      bool
 	Anime      string
 	Filler     string
+	RateLimit  int
 }
 
 // WithDryRun enables dry-run mode (preview changes without applying)
@@ -83,6 +84,11 @@ func WithAnime(anime string) Option {
 // WithFiller sets the anime filler list URL or slug
 func WithFiller(filler string) Option {
 	return func(o *Options) { o.Filler = filler }
+}
+
+// WithRateLimit sets the API rate limit (requests per second)
+func WithRateLimit(limit int) Option {
+	return func(o *Options) { o.RateLimit = limit }
 }
 
 // Rename renames anime episodes in the specified directory
@@ -165,6 +171,8 @@ type DBGenOptions struct {
 	AFLURL    string
 	OutputDir string
 	Force     bool
+	RateLimit  int
+	ConfigPath string
 }
 
 // DBGen generates an episode database from MAL and AnimeFillerList
@@ -176,8 +184,21 @@ func DBGen(malURL string, opts ...func(*DBGenOptions)) error {
 		opt(options)
 	}
 
+	// Load global config to check for default rate limit
+	globalCfg, _ := config.LoadGlobal(options.ConfigPath) // Ignore error, as defaults will be used
+	
 	// Create fetcher
-	f := fetcher.New(1000, 30)
+	// Use flag value if set, otherwise use config value, otherwise use hard default (1)
+	rateLimit := 1
+	
+	if globalCfg != nil && globalCfg.API.RateLimit > 0 {
+		rateLimit = globalCfg.API.RateLimit
+	}
+	
+	if options.RateLimit > 0 {
+		rateLimit = options.RateLimit
+	}
+	f := fetcher.New(rateLimit, 30)
 
 	// Extract MAL ID from URL
 	malID := ExtractMALID(options.MALURL)
