@@ -134,12 +134,38 @@ func New(customDir string) (*DB, error) {
 }
 
 func (db *DB) Load(seriesID string) (*SeriesData, error) {
-	path := filepath.Join(db.Dir, seriesID+".json")
-	data, err := os.ReadFile(path)
+
+	// Find file matching pattern: {ID}@*.json
+	pattern := filepath.Join(db.Dir, seriesID+"@*.json")
+
+	matches, err := filepath.Glob(pattern)
 	if err != nil {
-		if os.IsNotExist(err) {
-			return nil, nil
+		return nil, fmt.Errorf("failed to search for series %s: %w", seriesID, err)
+	}
+
+	if len(matches) == 0 {
+		return nil, nil // Not found
+	}
+
+	// If multiple matches, select the most recent file
+	filePath := matches[0]
+
+	if len(matches) > 1 {
+		var newestTime time.Time
+
+		for _, path := range matches {
+			info, err := os.Stat(path)
+
+			if err == nil && info.ModTime().After(newestTime) {
+				newestTime = info.ModTime()
+				filePath = path
+			}
 		}
+	}
+
+	data, err := os.ReadFile(filePath)
+
+	if err != nil {
 		return nil, fmt.Errorf("failed to read database file for series %s: %w", seriesID, err)
 	}
 
@@ -156,7 +182,22 @@ func (db *DB) Load(seriesID string) (*SeriesData, error) {
 }
 
 func (db *DB) Save(sd *SeriesData) error {
-	path := filepath.Join(db.Dir, sd.MALID+".json")
+	// Delete old files with same ID (handles slug changes)
+	pattern := filepath.Join(db.Dir, sd.MALID+"@*.json")
+	if oldMatches, err := filepath.Glob(pattern); err == nil {
+		for _, oldPath := range oldMatches {
+			os.Remove(oldPath) // Ignore errors, file might not exist
+		}
+	}
+
+	// Truncate slug if filename would exceed 255 chars
+	slug := sd.Slug
+	maxSlugLen := 255 - len(sd.MALID) - len("@") - len(".json")
+	if len(slug) > maxSlugLen {
+		slug = slug[:maxSlugLen]
+	}
+
+	path := filepath.Join(db.Dir, sd.MALID+"@"+slug+".json")
 	sd.LastUpdate = time.Now()
 
 	data, err := json.MarshalIndent(sd, "", "  ")
@@ -171,15 +212,29 @@ func (db *DB) Save(sd *SeriesData) error {
 }
 
 func (db *DB) Exists(seriesID string) bool {
-	path := filepath.Join(db.Dir, seriesID+".json")
-	_, err := os.Stat(path)
-	return err == nil
+	pattern := filepath.Join(db.Dir, seriesID+"@*.json")
+	matches, err := filepath.Glob(pattern)
+	return err == nil && len(matches) > 0
 }
 
 func (db *DB) Delete(seriesID string) error {
-	path := filepath.Join(db.Dir, seriesID+".json")
-	if err := os.Remove(path); err != nil {
-		return fmt.Errorf("failed to delete database file for series %s: %w", seriesID, err)
+
+	pattern := filepath.Join(db.Dir, seriesID+"@*.json")
+	matches, err := filepath.Glob(pattern)
+
+	if err != nil {
+		return fmt.Errorf("failed to search for series %s: %w", seriesID, err)
+	}
+
+	if len(matches) == 0 {
+		return fmt.Errorf("database file not found for series %s", seriesID)
+	}
+
+	// Delete all matching files (in case of duplicates)
+	for _, path := range matches {
+		if err := os.Remove(path); err != nil {
+			return fmt.Errorf("failed to delete database file %s: %w", path, err)
+		}
 	}
 	return nil
 }
@@ -197,65 +252,157 @@ func (db *DB) List() ([]string, error) {
 		return nil, fmt.Errorf("failed to list database files: %w", err)
 	}
 
-	var ids []string
+	idsMap := make(map[string]bool)
 	for _, entry := range entries {
 		if !entry.IsDir() && filepath.Ext(entry.Name()) == ".json" {
-			ids = append(ids, entry.Name()[:len(entry.Name())-5])
+			// Parse {ID}@{slug}.json format
+			namePart := entry.Name()[:len(entry.Name())-5] // Remove .json extension
+			parts := strings.Split(namePart, "@")
+			if len(parts) >= 1 {
+				idsMap[parts[0]] = true
+			}
 		}
+	}
+
+	// Convert map to slice for deduplication
+	var ids []string
+	for id := range idsMap {
+		ids = append(ids, id)
 	}
 	return ids, nil
 }
 
+type searchResultWithScore struct {
+	result SearchResult
+	score  int // Higher score = better match
+}
+
 func (db *DB) Find(query string) ([]SearchResult, error) {
+	querySlug := fetcher.GenerateSlug(query)
+	queryWords := strings.Fields(strings.ToLower(query))
+	var matches []searchResultWithScore
+
+	// Fast path: Try to find files by slug in filename
+	if querySlug != "" {
+		pattern := filepath.Join(db.Dir, "*@*"+querySlug+"*.json")
+		fileMatches, err := filepath.Glob(pattern)
+		if err == nil && len(fileMatches) > 0 {
+			// Found matches in filenames, load only those
+			for _, filePath := range fileMatches {
+				baseName := filepath.Base(filePath)
+				namePart := baseName[:len(baseName)-5] // Remove .json
+				parts := strings.Split(namePart, "@")
+				if len(parts) < 1 {
+					continue
+				}
+				id := parts[0]
+
+				sd, err := db.Load(id)
+				if err != nil || sd == nil {
+					continue
+				}
+
+				score := db.calculateMatchScore(sd, query, queryWords)
+				matches = append(matches, searchResultWithScore{
+					result: SearchResult{
+						MALID:        sd.MALID,
+						Title:        sd.Title,
+						EpisodeCount: sd.EpisodeCount,
+					},
+					score: score,
+				})
+			}
+
+			if len(matches) > 0 {
+				// Sort by score (lowest first = best matches at bottom for selection)
+				sort.Slice(matches, func(i, j int) bool {
+					return matches[i].score < matches[j].score
+				})
+				results := make([]SearchResult, len(matches))
+				for i, m := range matches {
+					results[i] = m.result
+				}
+				return results, nil // Fast path succeeded
+			}
+		}
+	}
+
+	// Fallback: Search all files by content (original behavior)
 	ids, err := db.List()
 	if err != nil {
 		return nil, err
 	}
 
-	var matches []SearchResult
-	querySlug := fetcher.GenerateSlug(query)
-
 	for _, id := range ids {
 		sd, err := db.Load(id)
-		if err != nil {
+		if err != nil || sd == nil {
 			continue // Skip malformed db files
 		}
 
-		// 1. Exact matches (ID or Slug)
-		if sd.MALID == query || sd.Slug == querySlug {
-			matches = append(matches, SearchResult{
-				MALID:        sd.MALID,
-				Title:        sd.Title,
-				EpisodeCount: sd.EpisodeCount,
-			})
-			continue
-		}
-
-		// 2. Fuzzy/Partial matches on Title or Aliases
-		// Check Main Title
-		if strings.Contains(strings.ToLower(sd.Title), strings.ToLower(query)) {
-			matches = append(matches, SearchResult{
-				MALID:        sd.MALID,
-				Title:        sd.Title,
-				EpisodeCount: sd.EpisodeCount,
-			})
-			continue
-		}
-
-		// Check Aliases
-		for _, alias := range sd.Aliases {
-			if strings.Contains(strings.ToLower(alias), strings.ToLower(query)) {
-				matches = append(matches, SearchResult{
+		// Calculate match score based on how well title/aliases match
+		score := db.calculateMatchScore(sd, query, queryWords)
+		if score > 0 {
+			matches = append(matches, searchResultWithScore{
+				result: SearchResult{
 					MALID:        sd.MALID,
 					Title:        sd.Title,
 					EpisodeCount: sd.EpisodeCount,
-				})
-				break
+				},
+				score: score,
+			})
+		}
+	}
+
+	// Sort by score (lowest first = best matches at bottom for selection)
+	sort.Slice(matches, func(i, j int) bool {
+		return matches[i].score < matches[j].score
+	})
+
+	results := make([]SearchResult, len(matches))
+	for i, m := range matches {
+		results[i] = m.result
+	}
+	return results, nil
+}
+
+func (db *DB) calculateMatchScore(sd *SeriesData, query string, queryWords []string) int {
+	score := 0
+
+	// Handle empty query - match everything with low score
+	if query == "" || len(queryWords) == 0 {
+		return 1
+	}
+
+	// 1. Exact ID match: +1000
+	if sd.MALID == query {
+		return 1000
+	}
+
+	// 2. Exact slug match: +900
+	querySlug := fetcher.GenerateSlug(query)
+	if querySlug != "" && sd.Slug == querySlug {
+		return 900
+	}
+
+	// 3. Count matching words in title
+	titleLower := strings.ToLower(sd.Title)
+	for _, word := range queryWords {
+		if strings.Contains(titleLower, word) {
+			score += 100
+		}
+	}
+
+	// 4. Count matching words in aliases
+	for _, alias := range sd.Aliases {
+		aliasLower := strings.ToLower(alias)
+		for _, word := range queryWords {
+			if strings.Contains(aliasLower, word) {
+				score += 50
 			}
 		}
 	}
 
-	return matches, nil
+	return score
 }
 
 func ParseRanges(s string) ([]int, error) {

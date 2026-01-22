@@ -40,8 +40,8 @@ func TestNewAndLoadSave(t *testing.T) {
 		t.Fatalf("Save() error = %v", err)
 	}
 
-	// Verify file exists
-	expectedPath := filepath.Join(tmpDir, "12345.json")
+	// Verify file exists with new format {ID}@{slug}.json
+	expectedPath := filepath.Join(tmpDir, "12345@test-anime.json")
 	if _, err := os.Stat(expectedPath); os.IsNotExist(err) {
 		t.Fatalf("Save() did not create file at %s", expectedPath)
 	}
@@ -122,8 +122,8 @@ func TestFind(t *testing.T) {
 		{
 			name:      "Exact slug",
 			query:     "meitantei-conan",
-			wantCount: 1,
-			wantFirst: "235",
+			wantCount: 2, // Both series contain this slug pattern
+			wantFirst: "779", // Now least relevant appears first (reversed for selection)
 		},
 		{
 			name:      "Fuzzy title match",
@@ -231,6 +231,7 @@ func TestList(t *testing.T) {
 		testData := &database.SeriesData{
 			MALID:      id,
 			Title:      "Test " + id,
+			Slug:       "test-" + id,
 			LastUpdate: time.Now(),
 		}
 		if err := db.Save(testData); err != nil {
@@ -245,5 +246,61 @@ func TestList(t *testing.T) {
 	}
 	if len(ids) != 3 {
 		t.Errorf("List() returned %d items; want 3", len(ids))
+	}
+}
+
+func TestLongSlug(t *testing.T) {
+	tmpDir, err := os.MkdirTemp("", "autotitle-db-long-slug-*")
+	if err != nil {
+		t.Fatalf("Failed to create temp dir: %v", err)
+	}
+	defer os.RemoveAll(tmpDir)
+
+	db, err := database.New(tmpDir)
+	if err != nil {
+		t.Fatalf("New() error = %v", err)
+	}
+
+	// Create test series with very long slug
+	longSlug := "very-very-very-very-very-very-very-very-very-very-very-very-very-very-very-very-very-very-very-very-very-very-very-very-very-very-very-very-very-very-very-very-very-very-very-very-very-very-very-very-long-slug"
+	testData := &database.SeriesData{
+		MALID:      "54321",
+		Title:      "Test Long Slug",
+		Slug:       longSlug,
+		LastUpdate: time.Now(),
+	}
+
+	// Save should truncate slug to fit within 255 char filename limit
+	if err := db.Save(testData); err != nil {
+		t.Fatalf("Save() error = %v", err)
+	}
+
+	// Verify file exists and filename is <= 255 chars
+	entries, err := os.ReadDir(tmpDir)
+	if err != nil {
+		t.Fatalf("ReadDir() error = %v", err)
+	}
+
+	if len(entries) != 1 {
+		t.Fatalf("Expected 1 file in db dir, got %d", len(entries))
+	}
+
+	filename := entries[0].Name()
+	if len(filename) > 255 {
+		t.Errorf("Filename length %d exceeds 255 char limit", len(filename))
+	}
+
+	// Verify we can load it back
+	loaded, err := db.Load("54321")
+	if err != nil {
+		t.Fatalf("Load() error = %v", err)
+	}
+
+	if loaded == nil {
+		t.Fatal("Load() returned nil")
+	}
+
+	if loaded.MALID != testData.MALID {
+		t.Errorf("Load() MALID = %q; want %q", loaded.MALID, testData.MALID)
 	}
 }
