@@ -16,17 +16,24 @@ A CLI tool & Go library for automatically renaming anime episodes with proper ti
 
 ### As CLI Tool
 
+#### From [`my-repo`](https://mydehq.github.io/my-repo/) Repo:
+
 ```bash
-go install github.com/mydehq/autotitle/cmd/autotitle@latest
+  curl -sL https://mydehq.github.io/my-repo/install | bash
+  sudo pacman -S autotitle
 ```
 
-Or clone and build:
+#### Or From AUR
 
 ```bash
-git clone https://github.com/mydehq/autotitle.git && cd autotitle
-make install
+paru -S autotitle
+```
 
-autotitle --help
+#### Or Build Manually:
+
+```bash
+  git clone https://github.com/mydehq/autotitle.git && cd autotitle
+  make install
 ```
 
 ### As Library
@@ -43,8 +50,10 @@ go get github.com/mydehq/autotitle
 # Navigate to your anime directory
 cd /path/to/videos
 
-# Initialize configuration (auto-detects patterns)
+# Initialize configuration
 autotitle init
+
+# open _autotitle.yml and make changes.
 
 # Preview changes (dry-run)
 autotitle --dry-run .
@@ -70,13 +79,22 @@ import (
 )
 
 func main() {
+
+  // Initialize config
+  err := autotitle.Init("/path/to/videos")
+  if err != nil {
+    fmt.Printf("Error: %v\n", err)
+    return
+  }
+
+  // open _autotitle.yml and make changes.
+
 	// Rename files in directory
-	err := autotitle.Rename("/path/to/videos",
-		autotitle.WithDryRun(),
-	)
+	err := autotitle.Rename("/path/to/videos")
 	if err != nil {
 		fmt.Printf("Error: %v\n", err)
 	}
+
 }
 ```
 
@@ -95,36 +113,40 @@ targets:
           - "Episode {{EP_NUM}} {{RES}}.{{EXT}}"
         output:
           fields: [SERIES, EP_NUM, FILLER, EP_NAME]
-          separator: " - "  # Optional, defaults to " - "
+          separator: " - " # Optional, defaults to " - "
 ```
 
 ### Output Format
 
 The field-based output format supports:
+
 - **Field names** (uppercase): SERIES, EP_NUM, FILLER, EP_NAME, RES
 - **Literal strings** (any text): "DC", "[v2]", "S01"
-- **Optional separator**: Defaults to ` - ` if not specified
+- **Optional separator**: Defaults to `-` if not specified
 - **Auto-skip empty fields**: Empty fields are automatically excluded from output
 
 **Example:**
+
 ```yaml
 output:
-  fields: [SERIES, EP_NUM, FILLER, EP_NAME]  # Standard format
-  separator: " - "  # Optional, defaults to " - "
+  fields: [SERIES, EP_NUM, FILLER, EP_NAME] # Standard format
+  separator: " - " # Optional, defaults to " - "
 ```
 
 **With literal strings:**
+
 ```yaml
 output:
-  fields: ["DC", EP_NUM, FILLER, EP_NAME]  # Adds "DC" prefix
+  fields: ["DC", EP_NUM, FILLER, EP_NAME] # Adds "DC" prefix
   separator: " - "
 ```
 
 **Different separator:**
+
 ```yaml
 output:
   fields: [SERIES, EP_NUM, EP_NAME]
-  separator: "_"  # Underscore separator
+  separator: "_" # Underscore separator
 ```
 
 ## mal_url & afl_url
