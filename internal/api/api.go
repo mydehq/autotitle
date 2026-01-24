@@ -1,17 +1,21 @@
-// Package api provides the core implementation for autotitle operations.
-// This package is used by both the CLI and the public library API.
+// Package api provides the main entry points for autotitle operations.
 package api
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"path/filepath"
+	"time"
 
+	"github.com/mydehq/autotitle/internal/backup"
 	"github.com/mydehq/autotitle/internal/config"
 	"github.com/mydehq/autotitle/internal/database"
-	"github.com/mydehq/autotitle/internal/fetcher"
 	"github.com/mydehq/autotitle/internal/matcher"
+	"github.com/mydehq/autotitle/internal/provider"
+	_ "github.com/mydehq/autotitle/internal/provider/filler" // Register filler sources
 	"github.com/mydehq/autotitle/internal/renamer"
+	"github.com/mydehq/autotitle/internal/types"
 )
 
 // Option is a functional option for configuring operations
@@ -19,411 +23,382 @@ type Option func(*Options)
 
 // Options holds configuration for autotitle operations
 type Options struct {
-	DryRun     bool
-	NoBackup   bool
-	Verbose    bool
-	Quiet      bool
-	ConfigPath string
-	Force      bool
-	Anime      string
-	Filler     string
-	RateLimit  int
+	DryRun   bool
+	NoBackup bool
+	Events   types.EventHandler
 }
 
-// WithDryRun enables dry-run mode (preview changes without applying)
+// WithDryRun enables dry-run mode
 func WithDryRun() Option {
 	return func(o *Options) { o.DryRun = true }
 }
 
-// WithNoBackup disables backup creation before renaming
+// WithNoBackup disables backup creation
 func WithNoBackup() Option {
 	return func(o *Options) { o.NoBackup = true }
 }
 
-// WithVerbose enables verbose output
-func WithVerbose() Option {
-	return func(o *Options) { o.Verbose = true }
-}
-
-// WithQuiet suppresses all output except errors
-func WithQuiet() Option {
-	return func(o *Options) { o.Quiet = true }
-}
-
-// WithConfig specifies a custom config file path
-func WithConfig(path string) Option {
-	return func(o *Options) { o.ConfigPath = path }
-}
-
-// WithForce enables force mode (overwrite existing files)
-func WithForce() Option {
-	return func(o *Options) { o.Force = true }
-}
-
-// WithAnime sets the anime name or MAL URL
-func WithAnime(anime string) Option {
-	return func(o *Options) { o.Anime = anime }
-}
-
-// WithFiller sets the anime filler list URL or slug
-func WithFiller(filler string) Option {
-	return func(o *Options) { o.Filler = filler }
-}
-
-// WithRateLimit sets the API rate limit (requests per second)
-func WithRateLimit(limit int) Option {
-	return func(o *Options) { o.RateLimit = limit }
+// WithEvents sets the event handler for progress updates
+func WithEvents(h types.EventHandler) Option {
+	return func(o *Options) { o.Events = h }
 }
 
 // Rename renames anime episodes in the specified directory
-func Rename(path string, opts ...Option) error {
+func Rename(ctx context.Context, path string, opts ...Option) ([]types.RenameOperation, error) {
 	options := &Options{}
-
 	for _, opt := range opts {
 		opt(options)
 	}
 
-	globalCfg, err := config.LoadGlobal(options.ConfigPath)
+	// Load config
+	cfg, err := config.Load(path)
 	if err != nil {
-		return fmt.Errorf("failed to load configuration: %w", err)
+		return nil, err
 	}
 
-	mapCfg, err := config.LoadMap(path, globalCfg.MapFile)
-
+	// Resolve target
+	target, err := cfg.ResolveTarget(path)
 	if err != nil {
-		if !os.IsNotExist(err) {
-			return fmt.Errorf("failed to load map configuration: %w", err)
+		return nil, err
+	}
+
+	// Get provider for URL
+	prov, err := provider.GetProviderForURL(target.URL)
+	if err != nil {
+		return nil, err
+	}
+
+	// Extract ID
+	id, err := prov.ExtractID(target.URL)
+	if err != nil {
+		return nil, err
+	}
+
+	// Initialize database
+	db, err := database.NewRepository("")
+	if err != nil {
+		return nil, err
+	}
+
+	// Try to update database if needed (smart cache check)
+	// If it fails (e.g. offline), we'll try to use the cached version if available
+	_, genErr := DBGen(ctx, target.URL, target.FillerURL, false)
+	if genErr != nil {
+		// Log error but continue to see if we have valid cache
+		// If we had an event handler here we could warn the user
+		fmt.Printf("Warning: Failed to update database: %v\n", genErr)
+	}
+
+	// Load media from database
+	media, err := db.Load(ctx, prov.Name(), id)
+	if err != nil {
+		return nil, err
+	}
+
+	if media == nil {
+		// If loading failed and generation also failed, returns the generation error
+		if genErr != nil {
+			return nil, fmt.Errorf("failed to generate database: %w", genErr)
 		}
-
-		return fmt.Errorf("no map file found at %s. Run 'autotitle init' first.", filepath.Join(path, globalCfg.MapFile))
+		// If generation "succeeded" (shouldn't happen if media is nil) or skipped,
+		// but media is still nil, return valid error
+		return nil, types.ErrDatabaseNotFound{Provider: prov.Name(), ID: id}
 	}
 
-	r := &renamer.Renamer{
-		Config:    globalCfg,
-		MapConfig: mapCfg,
-		DryRun:    options.DryRun,
-		NoBackup:  options.NoBackup,
-		Verbose:   options.Verbose,
-		Quiet:     options.Quiet,
-	}
-
-	db, err := database.New("") // Use default cache dir
+	// Load global config
+	globalCfg, err := config.LoadGlobal()
 	if err != nil {
-		return fmt.Errorf("failed to initialize database: %w", err)
-	}
-	r.DB = db
-
-	return r.Execute(path)
-}
-
-// Undo restores files from the backup directory
-func Undo(path string) error {
-	globalCfg, err := config.LoadGlobal("")
-	if err != nil {
-		return fmt.Errorf("failed to load configuration: %w", err)
-	}
-
-	r := &renamer.Renamer{Config: globalCfg}
-	if err := r.Undo(path); err != nil {
-		return fmt.Errorf("failed to undo rename: %w", err)
-	}
-	return nil
-}
-
-// Clean removes the backup directory
-func Clean(path string) error {
-	globalCfg, err := config.LoadGlobal("")
-	if err != nil {
-		return fmt.Errorf("failed to load configuration: %w", err)
-	}
-
-	r := &renamer.Renamer{Config: globalCfg}
-	if err := r.Clean(path); err != nil {
-		return fmt.Errorf("failed to clean backup: %w", err)
-	}
-	return nil
-}
-
-// DBGenOptions holds options for database generation
-type DBGenOptions struct {
-	MALURL     string
-	AFLURL     string
-	OutputDir  string
-	Force      bool
-	RateLimit  int
-	ConfigPath string
-}
-
-// DBGen generates an episode database from MAL and AnimeFillerList
-func DBGen(malURL string, opts ...func(*DBGenOptions)) error {
-	options := &DBGenOptions{
-		MALURL: malURL,
-	}
-	for _, opt := range opts {
-		opt(options)
-	}
-
-	globalCfg, _ := config.LoadGlobal(options.ConfigPath) // Ignore error, as defaults will be used
-
-	// Use flag value if set, otherwise use config value, otherwise use hard default (1)
-	rateLimit := 1
-
-	if globalCfg != nil && globalCfg.API.RateLimit > 0 {
-		rateLimit = globalCfg.API.RateLimit
-	}
-
-	if options.RateLimit > 0 {
-		rateLimit = options.RateLimit
-	}
-	f := fetcher.New(rateLimit, 30)
-
-	// Extract MAL ID from URL
-	malID := fetcher.ExtractMALID(options.MALURL)
-	if malID == 0 {
-		return fmt.Errorf("failed to extract MAL ID from URL: %s", options.MALURL)
-	}
-
-	// Fetch episodes
-	episodes, err := f.FetchEpisodes(malID)
-	if err != nil {
-		return fmt.Errorf("failed to fetch episodes: %w", err)
-	}
-
-	// Fetch fillers if AFL URL provided
-	var fillers map[int]bool
-	if options.AFLURL != "" {
-		fillerList, err := f.FetchFillers(options.AFLURL)
-		if err != nil {
-			// Silently ignore filler fetch errors - fillers are optional
-		} else if fillerList != nil {
-			fillers = make(map[int]bool)
-			for _, ep := range fillerList {
-				fillers[ep] = true
-			}
+		// Just warn, don't fail, use defaults
+		fmt.Printf("Warning: Failed to load global config: %v\n", err)
+		globalCfg = &config.GlobalConfig{
+			API:    types.APIConfig{RateLimit: 2.0, Timeout: 30},
+			Backup: types.BackupConfig{Enabled: true, DirName: "backups"},
 		}
 	}
 
-	// Fetch anime info
-	animeInfo, err := f.FetchAnimeInfo(malID)
-	if err != nil {
-		return fmt.Errorf("failed to fetch anime info: %w", err)
+	// Create renamer
+	r := renamer.New(db, globalCfg.Backup, globalCfg.Formats)
+	if options.DryRun {
+		r.WithDryRun()
+	}
+	if options.NoBackup {
+		r.WithNoBackup()
+	}
+	if options.Events != nil {
+		r.WithEvents(options.Events)
 	}
 
-	db, err := database.New(options.OutputDir)
-	if err != nil {
-		return fmt.Errorf("failed to create database: %w", err)
-	}
-
-	seriesID := fmt.Sprintf("%d", malID)
-	if db.Exists(seriesID) && !options.Force {
-		return fmt.Errorf("database already exists for series %s (use Force option to overwrite)", seriesID)
-	}
-
-	// Build series data
-	aliases := animeInfo.TitleSynonyms
-	if animeInfo.TitleEnglish != "" && animeInfo.TitleEnglish != animeInfo.Title {
-		aliases = append(aliases, animeInfo.TitleEnglish)
-	}
-	if animeInfo.TitleJapanese != "" && animeInfo.TitleJapanese != animeInfo.Title {
-		aliases = append(aliases, animeInfo.TitleJapanese)
-	}
-
-	seriesData := database.SeriesData{
-		MALID:         seriesID,
-		Title:         animeInfo.Title,
-		Slug:          fetcher.GenerateSlug(animeInfo.Title),
-		Aliases:       aliases,
-		MALURL:        animeInfo.URL,
-		ImageURL:      animeInfo.ImageURL,
-		EpisodeCount:  len(episodes),
-		Episodes:      make(map[int]database.EpisodeData),
-		TitleEnglish:  animeInfo.TitleEnglish,
-		TitleJapanese: animeInfo.TitleJapanese,
-		TitleSynonyms: animeInfo.TitleSynonyms,
-	}
-
-	for num, ep := range episodes {
-		seriesData.Episodes[num] = database.EpisodeData{
-			Number:  num,
-			Title:   ep.Title,
-			Filler:  fillers[num],
-			AirDate: ep.AirDate,
-		}
-	}
-
-	if err := db.Save(&seriesData); err != nil {
-		return fmt.Errorf("failed to save database: %w", err)
-	}
-
-	return nil
+	// Execute rename
+	return r.Execute(ctx, path, target, media)
 }
 
-// Creates a new map file in the specified directory
-func Init(path string, opts ...Option) error {
-	options := &Options{}
-
-	for _, opt := range opts {
-		opt(options)
-	}
-
+// Init creates a new map file in the specified directory
+func Init(ctx context.Context, path string, url, fillerURL string, force bool) error {
 	absPath, err := filepath.Abs(path)
 	if err != nil {
 		return fmt.Errorf("failed to resolve path: %w", err)
 	}
 
-	globalCfg, err := config.LoadGlobal(options.ConfigPath)
-	if err != nil {
-		return fmt.Errorf("failed to load configuration: %w", err)
+	// Load global config for map file name, formats, and default patterns
+	globalCfg, _ := config.LoadGlobal() // Ignore error, use defaults
+
+	mapFileName := config.DefaultMapFileName
+	formats := config.DefaultFormats
+	if globalCfg != nil {
+		if globalCfg.MapFile != "" {
+			mapFileName = globalCfg.MapFile
+		}
+		if len(globalCfg.Formats) > 0 {
+			formats = globalCfg.Formats
+		}
 	}
 
-	configPath := filepath.Join(absPath, globalCfg.MapFile)
-
-	if _, err := os.Stat(configPath); err == nil && !options.Force {
-		return fmt.Errorf("Config file already exists at %s (use WithForce to overwrite)", configPath)
+	mapPath := filepath.Join(absPath, mapFileName)
+	if _, err := os.Stat(mapPath); err == nil {
+		if !force {
+			return fmt.Errorf("map file already exists: %s", mapPath)
+		}
 	}
 
+	// Try to detect pattern from files using global formats
 	var detectedPattern string
-
-	entries, err := os.ReadDir(path)
-	if err != nil {
-		return fmt.Errorf("Failed to read directory: %w", err)
-	}
-
+	entries, _ := os.ReadDir(absPath)
 	for _, e := range entries {
 		if e.IsDir() {
 			continue
 		}
-		name := e.Name()
-		ext := filepath.Ext(name)
-		if ext == ".mkv" || ext == ".mp4" || ext == ".avi" || ext == ".webm" {
-			detectedPattern = matcher.GuessPattern(name)
+		ext := filepath.Ext(e.Name())
+		if len(ext) > 0 {
+			ext = ext[1:] // Remove leading dot
+		}
+		// Check if extension is in formats list
+		for _, f := range formats {
+			if ext == f {
+				detectedPattern = matcher.GuessPattern(e.Name())
+				break
+			}
+		}
+		if detectedPattern != "" {
 			break
 		}
 	}
 
-	inputPattern := detectedPattern
-	if inputPattern == "" {
-		inputPattern = "Episode {{EP_NUM}} {{RES}}"
+	if url == "" {
+		url = "https://myanimelist.net/anime/XXXXX/Series_Name"
+	}
+	if fillerURL == "" {
+		fillerURL = "https://www.animefillerlist.com/shows/series-name"
 	}
 
-	malURL := options.Anime
-	if malURL == "" {
-		malURL = "https://myanimelist.net/anime/XXXXX/Series_Name"
-	}
-
-	aflURL := options.Filler
-	if aflURL == "" {
-		aflURL = "https://www.animefillerlist.com/shows/series-name"
-	}
-
-	content := fmt.Sprintf(`# Autotitle Map File
-targets:
-  - path: "."
-    mal_url: "%s"   # Replace with actual MAL page URL
-    afl_url: "%s" # Replace with animeFilterList page url or 'null' if not found
-    patterns:
-      - input:
-          - "%s"      # AUTO GENERATED, VERIFY
-        output:
-          # Available fields: SERIES, SERIES_EN, SERIES_JP, EP_NUM, EP_NAME, FILLER, RES
-          fields: [SERIES, EP_NUM, FILLER, EP_NAME]
-`, malURL, aflURL, inputPattern)
-
-	if err := os.WriteFile(configPath, []byte(content), 0644); err != nil {
-		return fmt.Errorf("Failed to write config file: %w", err)
-	}
-
-	return nil
-}
-
-// DBPath returns the path to the database directory
-func DBPath(outputDir string) (string, error) {
-	db, err := database.New(outputDir)
-	if err != nil {
-		return "", fmt.Errorf("failed to create database: %w", err)
-	}
-
-	return db.Dir, nil
-}
-
-// DBList returns a list of all cached database series IDs
-func DBList(outputDir string) ([]string, error) {
-	db, err := database.New(outputDir)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create database: %w", err)
-	}
-
-	ids, err := db.List()
-	if err != nil {
-		return nil, fmt.Errorf("failed to list databases: %w", err)
-	}
-
-	return ids, nil
-}
-
-// DBInfo returns information about a specific database
-func DBInfo(seriesID string, outputDir string) (*SeriesData, error) {
-	db, err := database.New(outputDir)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create database: %w", err)
-	}
-
-	sd, err := db.Load(seriesID)
-	if err != nil {
-		return nil, fmt.Errorf("failed to load database for series %s: %w", seriesID, err)
-	}
-	if sd == nil {
-		return nil, fmt.Errorf("database not found for series %s", seriesID)
-	}
-
-	return sd, nil
-}
-
-// DBRm removes one or more databases
-func DBRm(seriesID string, outputDir string, deleteAll bool) error {
-	db, err := database.New(outputDir)
-	if err != nil {
-		return fmt.Errorf("failed to create database: %w", err)
-	}
-
-	if deleteAll {
-		if err := db.DeleteAll(); err != nil {
-			return fmt.Errorf("failed to delete all databases: %w", err)
+	// Use global patterns if detection failed
+	var cfg *config.Config
+	if detectedPattern == "" && globalCfg != nil && len(globalCfg.Patterns) > 0 {
+		// Use patterns from global config
+		cfg = &config.Config{
+			Targets: []config.Target{
+				{
+					Path:      ".",
+					URL:       url,
+					FillerURL: fillerURL,
+					Patterns:  globalCfg.Patterns,
+				},
+			},
 		}
-		return nil
+	} else {
+		cfg = config.GenerateDefault(url, fillerURL, detectedPattern)
 	}
 
-	if seriesID == "" {
-		return fmt.Errorf("specify a series ID or use deleteAll to delete all")
-	}
-
-	if err := db.Delete(seriesID); err != nil {
-		return fmt.Errorf("failed to delete database for series %s: %w", seriesID, err)
-	}
-
-	return nil
+	return config.Save(mapPath, cfg)
 }
 
-func FindSeriesByQuery(query string, outputDir string) ([]database.SearchResult, error) {
-	db, err := database.New(outputDir)
+// DBGen generates a database from a provider URL
+// Returns true if database was generated, false if it already existed
+func DBGen(ctx context.Context, url string, fillerURL string, force bool) (bool, error) {
+	// Load global config to configure provider
+	globalCfg, _ := config.LoadGlobal() // Ignore error, use defaults if fails (nil is handled by Configure)
+
+	// Get provider
+	prov, err := provider.GetProviderForURL(url)
 	if err != nil {
-		return nil, fmt.Errorf("failed to create database: %w", err)
+		return false, err
 	}
 
-	return db.Find(query)
+	// Configure provider with global settings
+	if globalCfg != nil {
+		prov.Configure(&globalCfg.API)
+	}
+
+	// Extract ID
+	id, err := prov.ExtractID(url)
+	if err != nil {
+		return false, err
+	}
+
+	// Initialize database repository
+	db, err := database.NewRepository("")
+	if err != nil {
+		return false, err
+	}
+
+	// Check if exists
+	if !force && db.Exists(prov.Name(), id) {
+		// Load existing data to check expiration
+		existing, err := db.Load(ctx, prov.Name(), id)
+		if err == nil && existing != nil {
+			// If finished airing, no new episodes will come
+			if existing.Status == "Finished Airing" {
+				return false, nil // Skip
+			}
+
+			// If next episode is known and in the future, wait
+			if existing.NextEpisodeAirDate != nil {
+				t, err := time.Parse(time.RFC3339, *existing.NextEpisodeAirDate)
+				if err == nil && t.After(time.Now()) {
+					return false, nil // Skip
+				}
+			}
+		} else {
+			// If load fails despite Exists returning true, assume valid (or corrupted, forcing overwrite might be safer?
+			// But for now, let's respect the "cached" behavior if we can't inspect it, or maybe fetch if we can't read it.
+			// Let's assume if Exists is true, we skip unless we have a reason to fetch.
+			// Actually, if we can't read it, we should probably fetch.
+			// But let's stick to the simple contract: if it exists, use it, UNLESS we know it's expired.
+			return false, nil
+		}
+	}
+
+	// Fetch media
+	media, err := prov.FetchMedia(ctx, id)
+	if err != nil {
+		return false, err
+	}
+
+	// Fetch filler if URL provided
+	if fillerURL != "" {
+		fillerSource, err := provider.GetFillerSourceForURL(fillerURL)
+		if err == nil {
+			slug, err := fillerSource.ExtractSlug(fillerURL)
+			if err == nil {
+				fillers, err := fillerSource.FetchFillers(ctx, slug)
+				if err == nil {
+					for i := range media.Episodes {
+						for _, f := range fillers {
+							if media.Episodes[i].Number == f {
+								media.Episodes[i].IsFiller = true
+								break
+							}
+						}
+					}
+					media.FillerSource = fillerSource.Name()
+				}
+			}
+		}
+	}
+
+	// Save to database
+	// db variable already exists from earlier check
+	if err := db.Save(ctx, media); err != nil {
+		return false, err
+	}
+
+	return true, nil
 }
 
-// Re-export commonly used types and functions from subpackages
-type (
-	Pattern      = matcher.Pattern
-	TemplateVars = matcher.TemplateVars
-	EpisodeData  = database.EpisodeData
-	SeriesData   = database.SeriesData
-)
+// DBList lists all cached databases
+func DBList(ctx context.Context, providerFilter string) ([]types.MediaSummary, error) {
+	db, err := database.NewRepository("")
+	if err != nil {
+		return nil, err
+	}
+	return db.List(ctx, providerFilter)
+}
 
-// Re-export pattern utilities
-var (
-	CompilePattern             = matcher.Compile
-	GuessPattern               = matcher.GuessPattern
-	GenerateFilenameFromFields = matcher.GenerateFilenameFromFields
-)
+// DBInfo returns information about a specific database entry
+func DBInfo(ctx context.Context, prov, id string) (*types.Media, error) {
+	db, err := database.NewRepository("")
+	if err != nil {
+		return nil, err
+	}
+	return db.Load(ctx, prov, id)
+}
+
+// DBDelete removes a database entry
+func DBDelete(ctx context.Context, prov, id string) error {
+	db, err := database.NewRepository("")
+	if err != nil {
+		return err
+	}
+	return db.Delete(ctx, prov, id)
+}
+
+// DBDeleteAll removes all database entries
+func DBDeleteAll(ctx context.Context) error {
+	db, err := database.NewRepository("")
+	if err != nil {
+		return err
+	}
+	return db.DeleteAll(ctx)
+}
+
+// DBPath returns the database directory path
+func DBPath() (string, error) {
+	db, err := database.NewRepository("")
+	if err != nil {
+		return "", err
+	}
+	return db.Path(), nil
+}
+
+// Undo restores files from backup
+func Undo(ctx context.Context, path string) error {
+	db, err := database.NewRepository("")
+	if err != nil {
+		return err
+	}
+	cacheRoot := filepath.Dir(db.Path())
+
+	globalCfg, _ := config.LoadGlobal()
+	dirName := backup.DefaultDirName
+	if globalCfg != nil && globalCfg.Backup.DirName != "" {
+		dirName = globalCfg.Backup.DirName
+	}
+
+	bm := backup.New(cacheRoot, dirName)
+	return bm.Restore(ctx, path)
+}
+
+// Clean removes the backup for a specific directory
+func Clean(ctx context.Context, path string) error {
+	db, err := database.NewRepository("")
+	if err != nil {
+		return err
+	}
+	cacheRoot := filepath.Dir(db.Path())
+
+	globalCfg, _ := config.LoadGlobal()
+	dirName := backup.DefaultDirName
+	if globalCfg != nil && globalCfg.Backup.DirName != "" {
+		dirName = globalCfg.Backup.DirName
+	}
+
+	bm := backup.New(cacheRoot, dirName)
+	return bm.Clean(ctx, path)
+}
+
+// CleanAll removes all backups globally
+func CleanAll(ctx context.Context) error {
+	db, err := database.NewRepository("")
+	if err != nil {
+		return err
+	}
+	cacheRoot := filepath.Dir(db.Path())
+
+	globalCfg, _ := config.LoadGlobal()
+	dirName := backup.DefaultDirName
+	if globalCfg != nil && globalCfg.Backup.DirName != "" {
+		dirName = globalCfg.Backup.DirName
+	}
+
+	bm := backup.New(cacheRoot, dirName)
+	return bm.CleanAll(ctx)
+}

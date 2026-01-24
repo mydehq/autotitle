@@ -8,6 +8,7 @@ A CLI tool & Go library for automatically renaming anime episodes with proper ti
 - 🎨 **Flexible Pattern Matching** - Support for multiple filename formats with `{{TEMPLATE}}` variables
 - 🔖 **Filler Detection** - Automatically marks filler episodes with `[F]` tag
 - 📚 **Episode Database** - Caches episode data from MyAnimeList and AnimeFillerList
+- 🧠 **Smart Updates** - Auto-updates database when new episodes air (checks release dates)
 - 💾 **Smart Backups** - Automatic backup before renaming with restore capability
 - 📦 **Library & CLI** - Use as standalone tool or import as Go package
 - 🏗️ **Clean Architecture** - Pure business logic API with zero UI dependencies
@@ -106,8 +107,8 @@ When you run `autotitle init`, it creates `_autotitle.yml` with auto-detected pa
 # Autotitle Map File
 targets:
   - path: "."
-    mal_url: "https://myanimelist.net/anime/XXXXX/Series_Name"
-    afl_url: "https://www.animefillerlist.com/shows/series-name"
+    url: "https://myanimelist.net/anime/XXXXX/Series_Name"
+    filler_url: "https://www.animefillerlist.com/shows/series-name"
     patterns:
       - input:
           - "Episode {{EP_NUM}} {{RES}}"
@@ -121,7 +122,7 @@ The field-based output format supports:
 
 - **Field names** (uppercase): SERIES, EP_NUM, FILLER, EP_NAME, RES
 - **Literal strings** (any text): "DC", "[v2]", "S01"
-- **Optional separator**: Defaults to `-` if not specified
+- **Optional separator**: Defaults to ` - ` (space-dash-space) if not specified
 - **Auto-skip empty fields**: Empty fields are automatically excluded from output
 
 **Example:**
@@ -148,10 +149,10 @@ output:
   separator: "_" # Underscore separator
 ```
 
-## mal_url & afl_url
+## url & filler_url
 
-- To get `mal_url`, visit [MyAnimeList](https://myanimelist.net/) and find the series, copy the URL.
-- To get `afl_url`, visit [AnimeFillerList](https://www.animefillerlist.com/) and find the series, copy the URL. In case the series is not listed/no filler, just use `null`.
+- To get `url`, visit [MyAnimeList](https://myanimelist.net/) and find the series, copy the URL.
+- To get `filler_url`, visit [AnimeFillerList](https://www.animefillerlist.com/) and find the series, copy the URL. If the series has no fillers, use `null` or omit this field.
 
 ### Available Fields
 
@@ -174,7 +175,7 @@ These fields can be used in the output configuration.
 
 ```bash
 autotitle <path>              # Rename files in directory
-autotitle init [path]         # Create _autotitle.yml config file
+autotitle init [path]         # Create _autotitle.yml map file
 autotitle undo <path>         # Restore from backup
 autotitle clean <path>        # Remove backup directory
 ```
@@ -182,12 +183,13 @@ autotitle clean <path>        # Remove backup directory
 ### Database Commands
 
 ```bash
-autotitle db gen <mal_url|mal_id>    # Generate database (writes extended DB; prints title/episode count)
-autotitle db path                    # Show database directory
-autotitle db list                    # List all cached databases (shows MAL ID and stored title)
-autotitle db info <id|url|query>     # Show database info; searches by fuzzy title/slug (interactive if ambiguous)
-autotitle db rm <id|url|query>       # Remove specific database; searches by fuzzy title/slug (interactive if ambiguous)
-autotitle db rm -a                   # Remove all databases
+autotitle db gen <mal_url> --filler <afl_url>  # Generate database with filler data
+autotitle db gen <mal_url> --force             # Force regenerate (ignore cache)
+autotitle db path                              # Show database directory
+autotitle db list                              # List all cached databases
+autotitle db info <id|url|query>               # Show database info
+autotitle db rm <id|url|query>                 # Remove specific database
+autotitle db rm -a                             # Remove all databases
 ```
 
 ### Flags
@@ -198,14 +200,26 @@ autotitle db rm -a                   # Remove all databases
 | `--no-backup` | `-n`  | Skip backup creation             |
 | `--verbose`   | `-v`  | Show detailed output             |
 | `--quiet`     | `-q`  | Suppress output except errors    |
-| `--config`    | `-c`  | Custom config file path          |
-| `--force`     | `-f`  | Overwrite existing files/configs |
+| `--config`    | `-c`  | Custom map file path             |
+| `--force`     | `-f`  | Force overwrite/update (config, database) |
 
 ## Global Configuration
 
 The global config file is located at:
 
-- Linux/macOS: `~/.config/autotitle/config.yml`
+- Linux/macOS: `~/.config/autotitle/config.yml` or `config.yaml`
+
+```yaml
+# Global Config Example
+map_file: _autotitle.yml        # Custom map file name
+formats: [mkv, mp4, avi, webm]  # Video extensions to scan
+api:
+  rate_limit: 2                 # API requests per second
+  timeout: 30                   # HTTP timeout in seconds
+backup:
+  enabled: true                 # Enable/disable backups
+  dir_name: .autotitle_backup   # Backup directory name
+```
 
 The local episode database files are stored in the cache directory:
 
@@ -223,9 +237,10 @@ autotitle/
     ├── config/              ← Configuration loading
     ├── matcher/             ← Pattern matching
     ├── renamer/             ← File operations
-    ├── fetcher/             ← External APIs
-    ├── logger/              ← CLI logging
-    └── util/                ← Utilities
+    ├── provider/            ← External APIs (MAL, etc.)
+    ├── provider/filler/     ← Filler sources (AFL, etc.)
+    ├── backup/              ← Backup/restore operations
+    └── types/               ← Shared types and interfaces
 ```
 
 **Key Principle:** All business logic lives in `internal/api` with zero dependencies on logging or UI concerns. This makes the code testable and reusable.

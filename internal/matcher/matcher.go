@@ -15,6 +15,7 @@ const (
 	PlaceholderEpName   = "{{EP_NAME}}"
 	PlaceholderFiller   = "{{FILLER}}"
 	PlaceholderRes      = "{{RES}}"
+	PlaceholderExt      = "{{EXT}}"
 	PlaceholderAny      = "{{ANY}}"
 )
 
@@ -29,6 +30,14 @@ type TemplateVars struct {
 	Ext      string
 }
 
+// MatchResult contains extracted values from a filename match
+type MatchResult struct {
+	EpisodeNum int
+	Resolution string
+	Extension  string
+	Raw        map[string]string // All captured groups
+}
+
 type Pattern struct {
 	raw   string
 	regex *regexp.Regexp
@@ -36,14 +45,18 @@ type Pattern struct {
 
 // Compile compiles a template string into a regex pattern
 func Compile(template string) (*Pattern, error) {
-	regexStr := regexp.QuoteMeta(template)
+	// Remove {{EXT}} from template as matching is done on base filename
+	templateBase := strings.ReplaceAll(template, "."+PlaceholderExt, "")
+	templateBase = strings.ReplaceAll(templateBase, PlaceholderExt, "")
+
+	regexStr := regexp.QuoteMeta(templateBase)
 
 	// Replace placeholders with named capture groups
 	regexStr = strings.ReplaceAll(regexStr, regexp.QuoteMeta(PlaceholderSeries), "(?P<Series>.+)")
 	regexStr = strings.ReplaceAll(regexStr, regexp.QuoteMeta(PlaceholderEpNum), "(?P<EpNum>\\d+)")
 	regexStr = strings.ReplaceAll(regexStr, regexp.QuoteMeta(PlaceholderEpName), "(?P<EpName>.+)")
 	regexStr = strings.ReplaceAll(regexStr, regexp.QuoteMeta(PlaceholderFiller), "(?P<Filler>.*)")
-	regexStr = strings.ReplaceAll(regexStr, regexp.QuoteMeta(PlaceholderRes), "(?P<Res>\\d{3,4}p)")
+	regexStr = strings.ReplaceAll(regexStr, regexp.QuoteMeta(PlaceholderRes), "(?P<Res>\\d{3,4}p|\\d{3,4}x\\d{3,4})")
 	regexStr = strings.ReplaceAll(regexStr, regexp.QuoteMeta(PlaceholderAny), "(?P<Any>.*)")
 
 	// Anchor the regex to match full string
@@ -87,6 +100,26 @@ func (p *Pattern) Match(filename string) map[string]string {
 	return result
 }
 
+// MatchTyped attempts to match a filename and returns a structured result
+func (p *Pattern) MatchTyped(filename string) (*MatchResult, bool) {
+	raw := p.Match(filename)
+	if raw == nil {
+		return nil, false
+	}
+
+	var epNum int
+	if ep, ok := raw["EpNum"]; ok && ep != "" {
+		fmt.Sscanf(ep, "%d", &epNum)
+	}
+
+	return &MatchResult{
+		EpisodeNum: epNum,
+		Resolution: raw["Res"],
+		Extension:  raw["Ext"],
+		Raw:        raw,
+	}, true
+}
+
 // GenerateFilenameFromFields builds filename from field list
 // Fields can be field names (uppercase) or literal strings
 // Only adds separator between non-empty values - no cleanup needed
@@ -99,7 +132,7 @@ func GenerateFilenameFromFields(fields []string, separator string, vars Template
 		"SERIES":    vars.Series,
 		"SERIES_EN": vars.SeriesEn,
 		"SERIES_JP": vars.SeriesJp,
-		"EP_NUM":    padNumber(vars.EpNum, 2),
+		"EP_NUM":    padNumber(vars.EpNum, 3),
 		"EP_NAME":   vars.EpName,
 		"FILLER":    vars.Filler,
 		"RES":       vars.Res,

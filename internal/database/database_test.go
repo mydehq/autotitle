@@ -1,306 +1,124 @@
 package database_test
 
 import (
+	"context"
 	"os"
 	"path/filepath"
 	"testing"
 	"time"
 
 	"github.com/mydehq/autotitle/internal/database"
+	"github.com/mydehq/autotitle/internal/types"
 )
 
-func TestNewAndLoadSave(t *testing.T) {
-	// Create temporary directory for test
-	tmpDir, err := os.MkdirTemp("", "autotitle-db-test-*")
+func TestRepository_SaveAndLoad(t *testing.T) {
+	tmpDir := t.TempDir()
+	repo, err := database.NewRepository(tmpDir)
 	if err != nil {
-		t.Fatalf("Failed to create temp dir: %v", err)
-	}
-	defer os.RemoveAll(tmpDir)
-
-	db, err := database.New(tmpDir)
-	if err != nil {
-		t.Fatalf("New() error = %v", err)
+		t.Fatalf("NewRepository failed: %v", err)
 	}
 
-	// Create test series data
-	testData := &database.SeriesData{
-		MALID:        "12345",
+	ctx := context.Background()
+	media := &types.Media{
+		ID:           "12345",
+		Provider:     "mal",
 		Title:        "Test Anime",
 		Slug:         "test-anime",
-		Aliases:      []string{"Test Series", "テストアニメ"},
 		EpisodeCount: 12,
-		Episodes: map[int]database.EpisodeData{
-			1: {Number: 1, Title: "Episode 1", Filler: false},
-			2: {Number: 2, Title: "Episode 2", Filler: true},
+		Episodes: []types.Episode{
+			{Number: 1, Title: "Ep 1"},
 		},
+		LastUpdate: time.Now(),
 	}
 
 	// Test Save
-	if err := db.Save(testData); err != nil {
-		t.Fatalf("Save() error = %v", err)
+	if err := repo.Save(ctx, media); err != nil {
+		t.Fatalf("Save failed: %v", err)
 	}
 
-	// Verify file exists with new format {ID}@{slug}.json
-	expectedPath := filepath.Join(tmpDir, "12345@test-anime.json")
+	// Verify file existence: {tmp}/{provider}/{id}@{slug}.json
+	expectedPath := filepath.Join(tmpDir, "mal", "12345@test-anime.json")
 	if _, err := os.Stat(expectedPath); os.IsNotExist(err) {
-		t.Fatalf("Save() did not create file at %s", expectedPath)
+		t.Errorf("Expected file at %s, but not found", expectedPath)
 	}
 
 	// Test Load
-	loaded, err := db.Load("12345")
+	loaded, err := repo.Load(ctx, "mal", "12345")
 	if err != nil {
-		t.Fatalf("Load() error = %v", err)
+		t.Fatalf("Load failed: %v", err)
 	}
-
 	if loaded == nil {
-		t.Fatal("Load() returned nil")
+		t.Fatal("Load returned nil")
 	}
 
-	// Verify loaded data
-	if loaded.MALID != testData.MALID {
-		t.Errorf("Load() MALID = %q; want %q", loaded.MALID, testData.MALID)
+	if loaded.Title != media.Title {
+		t.Errorf("Expected title %q, got %q", media.Title, loaded.Title)
 	}
-	if loaded.Title != testData.Title {
-		t.Errorf("Load() Title = %q; want %q", loaded.Title, testData.Title)
-	}
-	if len(loaded.Episodes) != len(testData.Episodes) {
-		t.Errorf("Load() Episodes count = %d; want %d", len(loaded.Episodes), len(testData.Episodes))
+	if len(loaded.Episodes) != 1 {
+		t.Errorf("Expected 1 episode, got %d", len(loaded.Episodes))
 	}
 }
 
-func TestFind(t *testing.T) {
-	// Create temporary directory for test
-	tmpDir, err := os.MkdirTemp("", "autotitle-db-find-*")
+func TestRepository_Search(t *testing.T) {
+	tmpDir := t.TempDir()
+	repo, err := database.NewRepository(tmpDir)
 	if err != nil {
-		t.Fatalf("Failed to create temp dir: %v", err)
-	}
-	defer os.RemoveAll(tmpDir)
-
-	db, err := database.New(tmpDir)
-	if err != nil {
-		t.Fatalf("New() error = %v", err)
+		t.Fatalf("NewRepository failed: %v", err)
 	}
 
-	// Create test data
-	series1 := &database.SeriesData{
-		MALID:        "235",
-		Title:        "Meitantei Conan",
-		Slug:         "meitantei-conan",
-		Aliases:      []string{"Detective Conan", "名探偵コナン"},
-		EpisodeCount: 1000,
-		LastUpdate:   time.Now(),
-	}
+	ctx := context.Background()
+	media1 := &types.Media{ID: "1", Provider: "mal", Title: "Naruto", Slug: "naruto"}
+	media2 := &types.Media{ID: "2", Provider: "mal", Title: "Naruto Shippuden", Slug: "naruto-shippuden"}
+	media3 := &types.Media{ID: "3", Provider: "tmdb", Title: "Bleach", Slug: "bleach"}
 
-	series2 := &database.SeriesData{
-		MALID:        "779",
-		Title:        "Meitantei Conan Movie 01: Tokei Jikake no Matenrou",
-		Slug:         "meitantei-conan-movie-01-tokei-jikake-no-matenrou",
-		Aliases:      []string{"Detective Conan Movie 01"},
-		EpisodeCount: 1,
-		LastUpdate:   time.Now(),
-	}
-
-	if err := db.Save(series1); err != nil {
-		t.Fatalf("Save(series1) error = %v", err)
-	}
-	if err := db.Save(series2); err != nil {
-		t.Fatalf("Save(series2) error = %v", err)
-	}
+	repo.Save(ctx, media1)
+	repo.Save(ctx, media2)
+	repo.Save(ctx, media3)
 
 	tests := []struct {
-		name      string
 		query     string
 		wantCount int
-		wantFirst string // MALID of first result
 	}{
-		{
-			name:      "Exact MAL ID",
-			query:     "235",
-			wantCount: 1,
-			wantFirst: "235",
-		},
-		{
-			name:      "Exact slug",
-			query:     "meitantei-conan",
-			wantCount: 2, // Both series contain this slug pattern
-			wantFirst: "779", // Now least relevant appears first (reversed for selection)
-		},
-		{
-			name:      "Fuzzy title match",
-			query:     "conan",
-			wantCount: 2, // Both series contain "conan"
-		},
-		{
-			name:      "Case insensitive",
-			query:     "CONAN",
-			wantCount: 2,
-		},
-		{
-			name:      "Partial title",
-			query:     "meitantei",
-			wantCount: 2,
-		},
-		{
-			name:      "Alias match",
-			query:     "detective",
-			wantCount: 2,
-		},
-		{
-			name:      "No match",
-			query:     "nonexistent",
-			wantCount: 0,
-		},
+		{"naruto", 2},
+		{"shippuden", 1},
+		{"bleach", 1},
+		{"one piece", 0},
+		{"", 3}, // Empty query should return all
 	}
 
 	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			results, err := db.Find(tt.query)
+		t.Run(tt.query, func(t *testing.T) {
+			results, err := repo.Search(ctx, tt.query)
 			if err != nil {
-				t.Fatalf("Find() error = %v", err)
+				t.Fatalf("Search failed: %v", err)
 			}
-
 			if len(results) != tt.wantCount {
-				t.Errorf("Find(%q) returned %d results; want %d", tt.query, len(results), tt.wantCount)
-			}
-
-			if tt.wantFirst != "" && len(results) > 0 {
-				if results[0].MALID != tt.wantFirst {
-					t.Errorf("Find(%q) first result MALID = %q; want %q", tt.query, results[0].MALID, tt.wantFirst)
-				}
+				t.Errorf("Search(%q) returned %d results, want %d", tt.query, len(results), tt.wantCount)
 			}
 		})
 	}
 }
 
-func TestExists(t *testing.T) {
-	tmpDir, err := os.MkdirTemp("", "autotitle-db-exists-*")
+func TestRepository_Delete(t *testing.T) {
+	tmpDir := t.TempDir()
+	repo, err := database.NewRepository(tmpDir)
 	if err != nil {
-		t.Fatalf("Failed to create temp dir: %v", err)
-	}
-	defer os.RemoveAll(tmpDir)
-
-	db, err := database.New(tmpDir)
-	if err != nil {
-		t.Fatalf("New() error = %v", err)
+		t.Fatalf("NewRepository failed: %v", err)
 	}
 
-	// Test non-existent
-	if db.Exists("99999") {
-		t.Error("Exists() returned true for non-existent series")
+	ctx := context.Background()
+	media := &types.Media{ID: "1", Provider: "mal", Title: "Test"}
+	repo.Save(ctx, media)
+
+	if !repo.Exists("mal", "1") {
+		t.Fatal("Exists returned false before delete")
 	}
 
-	// Save a series
-	testData := &database.SeriesData{
-		MALID:      "235",
-		Title:      "Test",
-		LastUpdate: time.Now(),
-	}
-	if err := db.Save(testData); err != nil {
-		t.Fatalf("Save() error = %v", err)
+	if err := repo.Delete(ctx, "mal", "1"); err != nil {
+		t.Fatalf("Delete failed: %v", err)
 	}
 
-	// Test existent
-	if !db.Exists("235") {
-		t.Error("Exists() returned false for existing series")
-	}
-}
-
-func TestList(t *testing.T) {
-	tmpDir, err := os.MkdirTemp("", "autotitle-db-list-*")
-	if err != nil {
-		t.Fatalf("Failed to create temp dir: %v", err)
-	}
-	defer os.RemoveAll(tmpDir)
-
-	db, err := database.New(tmpDir)
-	if err != nil {
-		t.Fatalf("New() error = %v", err)
-	}
-
-	// Empty list
-	ids, err := db.List()
-	if err != nil {
-		t.Fatalf("List() error = %v", err)
-	}
-	if len(ids) != 0 {
-		t.Errorf("List() on empty db returned %d items; want 0", len(ids))
-	}
-
-	// Add test data
-	for _, id := range []string{"235", "779", "1001"} {
-		testData := &database.SeriesData{
-			MALID:      id,
-			Title:      "Test " + id,
-			Slug:       "test-" + id,
-			LastUpdate: time.Now(),
-		}
-		if err := db.Save(testData); err != nil {
-			t.Fatalf("Save(%s) error = %v", id, err)
-		}
-	}
-
-	// List should return 3 items
-	ids, err = db.List()
-	if err != nil {
-		t.Fatalf("List() error = %v", err)
-	}
-	if len(ids) != 3 {
-		t.Errorf("List() returned %d items; want 3", len(ids))
-	}
-}
-
-func TestLongSlug(t *testing.T) {
-	tmpDir, err := os.MkdirTemp("", "autotitle-db-long-slug-*")
-	if err != nil {
-		t.Fatalf("Failed to create temp dir: %v", err)
-	}
-	defer os.RemoveAll(tmpDir)
-
-	db, err := database.New(tmpDir)
-	if err != nil {
-		t.Fatalf("New() error = %v", err)
-	}
-
-	// Create test series with very long slug
-	longSlug := "very-very-very-very-very-very-very-very-very-very-very-very-very-very-very-very-very-very-very-very-very-very-very-very-very-very-very-very-very-very-very-very-very-very-very-very-very-very-very-very-long-slug"
-	testData := &database.SeriesData{
-		MALID:      "54321",
-		Title:      "Test Long Slug",
-		Slug:       longSlug,
-		LastUpdate: time.Now(),
-	}
-
-	// Save should truncate slug to fit within 255 char filename limit
-	if err := db.Save(testData); err != nil {
-		t.Fatalf("Save() error = %v", err)
-	}
-
-	// Verify file exists and filename is <= 255 chars
-	entries, err := os.ReadDir(tmpDir)
-	if err != nil {
-		t.Fatalf("ReadDir() error = %v", err)
-	}
-
-	if len(entries) != 1 {
-		t.Fatalf("Expected 1 file in db dir, got %d", len(entries))
-	}
-
-	filename := entries[0].Name()
-	if len(filename) > 255 {
-		t.Errorf("Filename length %d exceeds 255 char limit", len(filename))
-	}
-
-	// Verify we can load it back
-	loaded, err := db.Load("54321")
-	if err != nil {
-		t.Fatalf("Load() error = %v", err)
-	}
-
-	if loaded == nil {
-		t.Fatal("Load() returned nil")
-	}
-
-	if loaded.MALID != testData.MALID {
-		t.Errorf("Load() MALID = %q; want %q", loaded.MALID, testData.MALID)
+	if repo.Exists("mal", "1") {
+		t.Error("Exists returned true after delete")
 	}
 }

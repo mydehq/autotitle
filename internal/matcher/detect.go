@@ -81,5 +81,8 @@ func GuessPattern(filename string) string {
 
 Finalize:
 
+	if len(ext) > 0 {
+		return pattern + ".{{EXT}}"
+	}
 	return pattern
 }
