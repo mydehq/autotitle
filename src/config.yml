@@ -13,7 +13,8 @@ patterns:
       - "Episode {{EP_NUM}}.{{EXT}}"
       - "E{{EP_NUM}}.{{EXT}}"
     output:
-      fields: [SERIES, EP_NUM, FILLER, EP_NAME]
+      separator: " "
+      fields: [E,+,EP_NUM, FILLER, "-", EP_NAME]
       # Example with literals: fields: ["Prefix", SERIES, EP_NUM, "Suffix"]
       # separator: " - "  # Optional, defaults to " - "
 

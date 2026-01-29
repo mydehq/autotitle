@@ -56,8 +56,8 @@ var Defaults = GlobalConfig{
 		{
 			Input: []string{"{{EP_NUM}}.{{EXT}}", "Episode {{EP_NUM}}.{{EXT}}", "E{{EP_NUM}}.{{EXT}}"},
 			Output: OutputConfig{
-				Fields:    []string{"E", "+", "EP_NUM", "FILLER", "EP_NAME"},
-				Separator: " - ",
+				Fields:    []string{"E", "+", "EP_NUM", "FILLER", "-", "EP_NAME"},
+				Separator: " ",
 				Offset:    0,
 				Padding:   0, // 0 means auto-detect
 			},

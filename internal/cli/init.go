@@ -36,7 +36,7 @@ func init() {
 	initCmd.Flags().StringVarP(&flagInitFillerURL, "filler", "F", "", "Filler list URL")
 	initCmd.Flags().BoolVarP(&flagInitForce, "force", "f", false, "Overwrite existing config")
 	initCmd.Flags().IntVarP(&flagInitOffset, "offset", "o", 0, "Episode number offset")
-	initCmd.Flags().StringVarP(&flagInitSeparator, "separator", "S", " - ", "Output separator")
+	initCmd.Flags().StringVarP(&flagInitSeparator, "separator", "S", " ", "Output separator")
 	initCmd.Flags().IntVarP(&flagInitPadding, "padding", "p", 0, "Episode number padding (e.g. 2 for 01)")
 }
 
