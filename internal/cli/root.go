@@ -11,11 +11,13 @@ import (
 )
 
 var (
-	flagDryRun   bool
-	flagNoBackup bool
-	flagVerbose  bool
-	flagQuiet    bool
-	flagOffset   int
+	flagDryRun    bool
+	flagNoBackup  bool
+	flagVerbose   bool
+	flagQuiet     bool
+	flagOffset    int
+	flagFillerURL string
+	flagForce     bool
 
 	logger *log.Logger
 )
@@ -42,8 +44,9 @@ func init() {
 	RootCmd.Flags().BoolVarP(&flagDryRun, "dry-run", "d", false, "Preview changes without applying")
 	RootCmd.Flags().BoolVarP(&flagNoBackup, "no-backup", "n", false, "Skip backup creation")
 	RootCmd.Flags().BoolVarP(&flagVerbose, "verbose", "v", false, "Verbose output")
-	RootCmd.Flags().BoolVarP(&flagQuiet, "quiet", "q", false, "Quiet mode")
 	RootCmd.Flags().IntVarP(&flagOffset, "offset", "o", 0, "Episode number offset (db_num = local_num + offset)")
+	RootCmd.Flags().StringVarP(&flagFillerURL, "filler", "F", "", "Override filler source URL")
+	RootCmd.Flags().BoolVarP(&flagForce, "force", "f", false, "Force database refresh")
 
 	// Default logger setup (before flags parse)
 	logger = log.New(os.Stdout)
@@ -99,6 +102,13 @@ func runRename(ctx context.Context, cmd *cobra.Command, path string) {
 
 	if cmd.Flags().Changed("offset") {
 		opts = append(opts, autotitle.WithOffset(flagOffset))
+	}
+
+	if flagFillerURL != "" {
+		opts = append(opts, autotitle.WithFiller(flagFillerURL))
+	}
+	if flagForce {
+		opts = append(opts, autotitle.WithForce())
 	}
 
 	if !flagQuiet {

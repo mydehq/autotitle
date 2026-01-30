@@ -75,7 +75,17 @@ func init() {
 }
 
 func runDBGen(ctx context.Context, url string) {
-	generated, err := autotitle.DBGen(ctx, url, flagDBFillerURL, flagDBForce)
+	opts := []autotitle.Option{}
+
+	if flagDBFillerURL != "" {
+		opts = append(opts, autotitle.WithFiller(flagDBFillerURL))
+	}
+
+	if flagDBForce {
+		opts = append(opts, autotitle.WithForce())
+	}
+
+	generated, err := autotitle.DBGen(ctx, url, opts...)
 	if err != nil {
 		logger.Error(fmt.Sprintf("Failed to generate database: %v", err))
 		os.Exit(1)
