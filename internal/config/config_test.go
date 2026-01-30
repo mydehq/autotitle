@@ -141,3 +141,70 @@ func TestGenerateDefault(t *testing.T) {
 		t.Errorf("expected 1 pattern, got %d", len(target.Patterns))
 	}
 }
+
+func TestGenerateDefaultSideEffects(t *testing.T) {
+	// Capture initial state of globals
+	initialURL := defaultMapFile.Targets[0].URL
+	initialPatterns := len(defaults.Patterns)
+	initialSeparator := defaults.Patterns[0].Output.Separator
+
+	// Call GenerateDefault with overrides
+	cfg1 := GenerateDefault("https://override-url.com", "", nil, "|", 5, 3)
+
+	// Verify cfg1 is correct
+	if cfg1.Targets[0].URL != "https://override-url.com" {
+		t.Errorf("cfg1 URL not overridden: %s", cfg1.Targets[0].URL)
+	}
+	if cfg1.Targets[0].Patterns[0].Output.Separator != "|" {
+		t.Errorf("cfg1 separator not overridden: %s", cfg1.Targets[0].Patterns[0].Output.Separator)
+	}
+
+	// Verify globals are UNCHANGED
+	if defaultMapFile.Targets[0].URL != initialURL {
+		t.Errorf("defaultMapFile.URL mutated! expected %s, got %s", initialURL, defaultMapFile.Targets[0].URL)
+	}
+	if len(defaults.Patterns) != initialPatterns {
+		t.Errorf("defaults.Patterns length mutated! expected %d, got %d", initialPatterns, len(defaults.Patterns))
+	}
+	if defaults.Patterns[0].Output.Separator != initialSeparator {
+		t.Errorf("defaults.Patterns separator mutated! expected %s, got %s", initialSeparator, defaults.Patterns[0].Output.Separator)
+	}
+
+	// Second call with different overrides
+	cfg2 := GenerateDefault("https://another-url.com", "", nil, ":", 0, 0)
+	if cfg2.Targets[0].URL != "https://another-url.com" {
+		t.Errorf("cfg2 URL not overridden: %s", cfg2.Targets[0].URL)
+	}
+	if cfg2.Targets[0].Patterns[0].Output.Separator != ":" {
+		t.Errorf("cfg2 separator not overridden: %s", cfg2.Targets[0].Patterns[0].Output.Separator)
+	}
+
+	// Ensure cfg1 was not affected by cfg2
+	if cfg1.Targets[0].URL != "https://override-url.com" {
+		t.Errorf("cfg1 URL modified by cfg2: %s", cfg1.Targets[0].URL)
+	}
+	if cfg1.Targets[0].Patterns[0].Output.Separator != "|" {
+		t.Errorf("cfg1 separator modified by cfg2: %s", cfg1.Targets[0].Patterns[0].Output.Separator)
+	}
+}
+
+func TestGenerateDefaultFieldsSideEffects(t *testing.T) {
+	// Call GenerateDefault
+	cfg1 := GenerateDefault("", "", nil, "", 0, 0)
+
+	// Modify fields in cfg1
+	cfg1.Targets[0].Patterns[0].Output.Fields[0] = "MODIFIED"
+
+	// Call GenerateDefault again
+	cfg2 := GenerateDefault("", "", nil, "", 0, 0)
+
+	// Verify cfg2 has original fields, not MODIFIED
+	if cfg2.Targets[0].Patterns[0].Output.Fields[0] == "MODIFIED" {
+		t.Error("cfg2 affected by cfg1 modification! Fields slice was not deep-copied.")
+	}
+
+	// Verify global defaultMapFile is unchanged
+	if defaultMapFile.Targets[0].Patterns[0].Output.Fields[0] == "MODIFIED" {
+		t.Error("defaultMapFile affected by cfg1 modification! Global Fields slice was mutated.")
+	}
+}

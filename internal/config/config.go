@@ -20,8 +20,10 @@ type (
 	GlobalConfig = types.GlobalConfig
 )
 
-// Defaults holds the default global configuration values
-var Defaults = types.GlobalConfig{
+const GlobalConfigFileName = "config.yml"
+
+// defaults holds the default global configuration values
+var defaults = types.GlobalConfig{
 	MapFile: "_autotitle.yml",
 	Formats: []string{"mkv", "mp4", "avi", "webm", "m4v", "ts", "flv"},
 	Patterns: []types.Pattern{
@@ -45,12 +47,28 @@ var Defaults = types.GlobalConfig{
 	},
 }
 
-const GlobalConfigFileName = "config.yml"
+// defaultMapFile holds the default configuration for _autotitle.yml
+var defaultMapFile = types.Config{
+	Targets: []types.Target{
+		{
+			Path:      ".",
+			URL:       "https://myanimelist.net/anime/XXXXX/Series_Name",
+			FillerURL: "https://www.animefillerlist.com/shows/series-name",
+			Patterns:  defaults.Patterns,
+		},
+	},
+}
+
+// GetDefaults returns a deep copy of the default global configuration
+func GetDefaults() types.GlobalConfig {
+	return defaults.Clone()
+}
+
 
 // Load loads configuration from a directory
 func Load(dir string) (*types.Config, error) {
 	// Try to get map file name from global config
-	mapFileName := Defaults.MapFile
+	mapFileName := defaults.MapFile
 	if globalCfg, err := LoadGlobal(); err == nil && globalCfg.MapFile != "" {
 		mapFileName = globalCfg.MapFile
 	}
@@ -133,7 +151,7 @@ func LoadGlobal() (*types.GlobalConfig, error) {
 
 	// Default values
 	cfg := &types.GlobalConfig{}
-	*cfg = Defaults
+	*cfg = GetDefaults()
 
 	if configPath == "" {
 		return cfg, nil // Return defaults if no config found
@@ -198,34 +216,42 @@ func Validate(cfg *types.Config) error {
 // GenerateDefault creates a default config with auto-detected pattern
 func GenerateDefault(url, fillerURL string, inputPatterns []string, separator string, offset, padding int) *types.Config {
 
-	if len(inputPatterns) == 0 {
-		inputPatterns = defaultPattern.Input
+	// Create a deep copy of defaultMapFile to avoid mutating globals
+	cfg := defaultMapFile.Clone()
+	target := &cfg.Targets[0]
+
+	// Override with provided values
+	if url != "" {
+		target.URL = url
 	}
 
-	if separator == "" {
-		separator = defaultPattern.Output.Separator
+	if fillerURL != "" {
+		target.FillerURL = fillerURL
 	}
 
-	// Current logic uses passed padding.
-
-	return &Config{
-		Targets: []Target{
+	// If input patterns are provided, we only want those.
+	if len(inputPatterns) > 0 {
+		templateOutput := target.Patterns[0].Output
+		target.Patterns = []types.Pattern{
 			{
-				Path:      ".",
-				URL:       url,
-				FillerURL: fillerURL,
-				Patterns: []Pattern{
-					{
-						Input: inputPatterns,
-						Output: OutputConfig{
-							Fields:    defaultPattern.Output.Fields,
-							Separator: separator,
-							Offset:    offset,
-							Padding:   padding,
-						},
-					},
-				},
+				Input:  inputPatterns,
+				Output: templateOutput,
 			},
-		},
+		}
 	}
+
+	// Apply settings to all patterns
+	for i := range target.Patterns {
+		if separator != "" {
+			target.Patterns[i].Output.Separator = separator
+		}
+		if offset != 0 {
+			target.Patterns[i].Output.Offset = offset
+		}
+		if padding > 0 {
+			target.Patterns[i].Output.Padding = padding
+		}
+	}
+
+	return cfg
 }

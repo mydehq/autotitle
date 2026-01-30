@@ -42,6 +42,69 @@ type GlobalConfig struct {
 	Backup   BackupConfig `yaml:"backup"`
 }
 
+// Clone returns a deep copy of the configuration
+func (c *Config) Clone() *Config {
+	if c == nil {
+		return nil
+	}
+	res := *c
+	if len(c.Targets) > 0 {
+		res.Targets = make([]Target, len(c.Targets))
+		for i, t := range c.Targets {
+			res.Targets[i] = *t.Clone()
+		}
+	}
+	return &res
+}
+
+// Clone returns a deep copy of the target
+func (t *Target) Clone() *Target {
+	if t == nil {
+		return nil
+	}
+	res := *t
+	if len(t.Patterns) > 0 {
+		res.Patterns = make([]Pattern, len(t.Patterns))
+		for i, p := range t.Patterns {
+			res.Patterns[i] = *p.Clone()
+		}
+	}
+	return &res
+}
+
+// Clone returns a deep copy of the pattern
+func (p *Pattern) Clone() *Pattern {
+	if p == nil {
+		return nil
+	}
+	res := *p
+	if len(p.Input) > 0 {
+		res.Input = make([]string, len(p.Input))
+		copy(res.Input, p.Input)
+	}
+	if len(p.Output.Fields) > 0 {
+		res.Output.Fields = make([]string, len(p.Output.Fields))
+		copy(res.Output.Fields, p.Output.Fields)
+	}
+	return &res
+}
+
+// Clone returns a deep copy of the global configuration
+func (g *GlobalConfig) Clone() GlobalConfig {
+	res := *g
+	if len(g.Patterns) > 0 {
+		res.Patterns = make([]Pattern, len(g.Patterns))
+		for i, p := range g.Patterns {
+			res.Patterns[i] = *p.Clone()
+		}
+	}
+	if len(g.Formats) > 0 {
+		res.Formats = make([]string, len(g.Formats))
+		copy(res.Formats, g.Formats)
+	}
+	return res
+}
+
 // ResolveTarget finds the target configuration for a given path
 func (c *Config) ResolveTarget(path string) (*Target, error) {
 	absPath, err := filepath.Abs(path)
