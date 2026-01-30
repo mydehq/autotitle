@@ -115,7 +115,7 @@ func WithForce() Option {
 // Rename renames media files in the specified directory
 func Rename(ctx context.Context, path string, opts ...Option) ([]types.RenameOperation, error) {
 	options := &Options{}
-	
+
 	for _, opt := range opts {
 		opt(options)
 	}
@@ -270,6 +270,33 @@ func Init(ctx context.Context, path string, opts ...Option) error {
 				seenPatterns[p] = true
 			}
 		}
+	}
+
+	if len(detectedPatterns) == 0 && len(entries) == 0 && !options.Force {
+		return fmt.Errorf("no files found in directory")
+	}
+
+	// Check if any media files were found
+	hasMedia := false
+	for _, e := range entries {
+
+		if e.IsDir() {
+			continue
+		}
+
+		ext := filepath.Ext(e.Name())
+		if len(ext) > 0 {
+			ext = ext[1:]
+		}
+
+		if slices.Contains(formats, ext) {
+			hasMedia = true
+			break
+		}
+	}
+
+	if !hasMedia && !options.Force {
+		return fmt.Errorf("no media files found in directory (use --force to initialize anyway)")
 	}
 
 	url := options.URL
