@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
 	"time"
 
 	"github.com/mydehq/autotitle/internal/backup"
@@ -114,6 +115,7 @@ func WithForce() Option {
 // Rename renames media files in the specified directory
 func Rename(ctx context.Context, path string, opts ...Option) ([]types.RenameOperation, error) {
 	options := &Options{}
+	
 	for _, opt := range opts {
 		opt(options)
 	}
@@ -148,7 +150,25 @@ func Rename(ctx context.Context, path string, opts ...Option) ([]types.RenameOpe
 		return nil, err
 	}
 
-	_, genErr := DBGen(ctx, target.URL, target.FillerURL, false)
+	// If local options specify a FillerURL, prefer that over the config file
+	fillerURL := target.FillerURL
+	if options.FillerURL != "" {
+		fillerURL = options.FillerURL
+	}
+
+	force := false
+	if options.Force {
+		force = true
+	}
+
+	dbGenOpts := []Option{
+		WithFiller(fillerURL),
+	}
+	if force {
+		dbGenOpts = append(dbGenOpts, WithForce())
+	}
+
+	_, genErr := DBGen(ctx, target.URL, dbGenOpts...)
 	if genErr != nil {
 		fmt.Printf("Warning: Failed to update database: %v\n", genErr)
 	}
@@ -243,14 +263,11 @@ func Init(ctx context.Context, path string, opts ...Option) error {
 			ext = ext[1:] // Remove leading dot
 		}
 		// Check if extension is in formats list
-		for _, f := range formats {
-			if ext == f {
-				p := matcher.GuessPattern(e.Name())
-				if p != "" && !seenPatterns[p] {
-					detectedPatterns = append(detectedPatterns, p)
-					seenPatterns[p] = true
-				}
-				break
+		if slices.Contains(formats, ext) {
+			p := matcher.GuessPattern(e.Name())
+			if p != "" && !seenPatterns[p] {
+				detectedPatterns = append(detectedPatterns, p)
+				seenPatterns[p] = true
 			}
 		}
 	}
@@ -306,7 +323,12 @@ func Init(ctx context.Context, path string, opts ...Option) error {
 
 // DBGen generates a database from a provider URL
 // Returns true if database was generated, false if it already existed
-func DBGen(ctx context.Context, url string, fillerURL string, force bool) (bool, error) {
+func DBGen(ctx context.Context, url string, opts ...Option) (bool, error) {
+	options := &Options{}
+	for _, opt := range opts {
+		opt(options)
+	}
+
 	// Load global config to configure provider
 	globalCfg, _ := config.LoadGlobal()
 
@@ -334,7 +356,7 @@ func DBGen(ctx context.Context, url string, fillerURL string, force bool) (bool,
 	}
 
 	// Check if exists
-	if !force && db.Exists(prov.Name(), id) {
+	if !options.Force && db.Exists(prov.Name(), id) {
 		// Load existing data to check expiration
 		existing, err := db.Load(ctx, prov.Name(), id)
 		if err == nil && existing != nil {
@@ -362,19 +384,16 @@ func DBGen(ctx context.Context, url string, fillerURL string, force bool) (bool,
 	}
 
 	// Fetch filler if URL provided
-	if fillerURL != "" {
-		fillerSource, err := provider.GetFillerSourceForURL(fillerURL)
+	if options.FillerURL != "" {
+		fillerSource, err := provider.GetFillerSourceForURL(options.FillerURL)
 		if err == nil {
-			slug, err := fillerSource.ExtractSlug(fillerURL)
+			slug, err := fillerSource.ExtractSlug(options.FillerURL)
 			if err == nil {
 				fillers, err := fillerSource.FetchFillers(ctx, slug)
 				if err == nil {
 					for i := range media.Episodes {
-						for _, f := range fillers {
-							if media.Episodes[i].Number == f {
-								media.Episodes[i].IsFiller = true
-								break
-							}
+						if slices.Contains(fillers, media.Episodes[i].Number) {
+							media.Episodes[i].IsFiller = true
 						}
 					}
 					media.FillerSource = fillerSource.Name()
