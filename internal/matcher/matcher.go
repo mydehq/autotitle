@@ -55,12 +55,12 @@ func Compile(template string) (*Pattern, error) {
 	regexStr := regexp.QuoteMeta(templateBase)
 
 	// Replace placeholders with named capture groups
-	regexStr = strings.ReplaceAll(regexStr, regexp.QuoteMeta(PlaceholderSeries), "(?P<Series>.+)")
+	regexStr = strings.ReplaceAll(regexStr, regexp.QuoteMeta(PlaceholderSeries), "(?P<Series>.+?)")
 	regexStr = strings.ReplaceAll(regexStr, regexp.QuoteMeta(PlaceholderEpNum), "(?P<EpNum>\\d+)")
-	regexStr = strings.ReplaceAll(regexStr, regexp.QuoteMeta(PlaceholderEpName), "(?P<EpName>.+)")
-	regexStr = strings.ReplaceAll(regexStr, regexp.QuoteMeta(PlaceholderFiller), "(?P<Filler>.*)")
+	regexStr = strings.ReplaceAll(regexStr, regexp.QuoteMeta(PlaceholderEpName), "(?P<EpName>.+?)")
+	regexStr = strings.ReplaceAll(regexStr, regexp.QuoteMeta(PlaceholderFiller), "(?P<Filler>.*?)")
 	regexStr = strings.ReplaceAll(regexStr, regexp.QuoteMeta(PlaceholderRes), "(?P<Res>\\d{3,4}p|\\d{3,4}x\\d{3,4})")
-	regexStr = strings.ReplaceAll(regexStr, regexp.QuoteMeta(PlaceholderAny), "(?P<Any>.*)")
+	regexStr = strings.ReplaceAll(regexStr, regexp.QuoteMeta(PlaceholderAny), "(?P<Any>.*?)")
 
 	regexStr = "^" + regexStr + "$"
 
@@ -186,20 +186,20 @@ func GenerateFilenameFromFields(fields []string, separator string, vars Template
 
 func resolveField(field string, vars TemplateVars, padding int) (string, error) {
 	switch field {
-	    case "SERIES":
-	    	return vars.Series, nil
-	    case "SERIES_EN":
-	    	return vars.SeriesEn, nil
-	    case "SERIES_JP":
-	    	return vars.SeriesJp, nil
-	    case "EP_NUM":
-	    	return padNumber(vars.EpNum, padding), nil
-	    case "EP_NAME":
-	    	return vars.EpName, nil
-	    case "FILLER":
-	    	return vars.Filler, nil
-	    case "RES":
-	    	return vars.Res, nil
+	case "SERIES":
+		return vars.Series, nil
+	case "SERIES_EN":
+		return vars.SeriesEn, nil
+	case "SERIES_JP":
+		return vars.SeriesJp, nil
+	case "EP_NUM":
+		return padNumber(vars.EpNum, padding), nil
+	case "EP_NAME":
+		return vars.EpName, nil
+	case "FILLER":
+		return vars.Filler, nil
+	case "RES":
+		return vars.Res, nil
 	}
 
 	// Not a keyword.

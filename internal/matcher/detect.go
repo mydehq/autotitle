@@ -6,6 +6,14 @@ import (
 	"strings"
 )
 
+var (
+	reCRC    = regexp.MustCompile(`\[[A-Fa-f0-9]{8}\]`)
+	reRes    = regexp.MustCompile(`(?i)\b(\d{3,4}p|\d{3,4}x\d{3,4})\b`)
+	reSxxExx = regexp.MustCompile(`(?i)(S\d+E)(\d+)`)
+	rePrefix = regexp.MustCompile(`( - | Episode | Ep\.? )(\d+)`)
+	reNumber = regexp.MustCompile(`\d+`)
+)
+
 // GuessPattern auto-detects a pattern from a filename
 func GuessPattern(filename string) string {
 	ext := filepath.Ext(filename)
@@ -17,17 +25,14 @@ func GuessPattern(filename string) string {
 	pattern := base
 
 	// Mask CRCs: [8 hex chars] -> [{{ANY}}]
-	reCRC := regexp.MustCompile(`\[[A-Fa-f0-9]{8}\]`)
 	pattern = reCRC.ReplaceAllString(pattern, `[{{ANY}}]`)
 
 	// Identify Resolution: \d{3,4}p or \d+x\d+
-	reRes := regexp.MustCompile(`(?i)\b(\d{3,4}p|\d{3,4}x\d{3,4})\b`)
 	if loc := reRes.FindStringIndex(pattern); loc != nil {
 		pattern = pattern[:loc[0]] + "{{RES}}" + pattern[loc[1]:]
 	}
 
 	// Heuristic A: SxxExx format
-	reSxxExx := regexp.MustCompile(`(?i)(S\d+E)(\d+)`)
 	if startEnd := reSxxExx.FindStringSubmatchIndex(pattern); startEnd != nil {
 		prefixEnd := startEnd[3]
 		numEnd := startEnd[5]
@@ -37,7 +42,6 @@ func GuessPattern(filename string) string {
 
 	// Heuristic B: Prefix patterns like " - 01" or " Episode 01"
 	{
-		rePrefix := regexp.MustCompile(`( - | Episode | Ep\.? )(\d+)`)
 		if startEnd := rePrefix.FindStringSubmatchIndex(pattern); startEnd != nil {
 			numStart, numEnd := startEnd[4], startEnd[5]
 			pattern = pattern[:numStart] + "{{EP_NUM}}" + pattern[numEnd:]
@@ -47,8 +51,7 @@ func GuessPattern(filename string) string {
 
 	// Heuristic C: Find last number, filtering out version/codec/year numbers
 	{
-		reNum := regexp.MustCompile(`\d+`)
-		matches := reNum.FindAllStringIndex(pattern, -1)
+		matches := reNumber.FindAllStringIndex(pattern, -1)
 
 		var bestMatch []int
 

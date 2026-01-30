@@ -196,3 +196,26 @@ func TestCompileAndMatch(t *testing.T) {
 		}
 	}
 }
+
+func TestNonGreedyMatch(t *testing.T) {
+	// Greedy matchers (.+) would capture "Subs] [v2" for {{ANY}}
+	template := "[{{ANY}}] {{SERIES}} - {{EP_NUM}}.{{EXT}}"
+	filename := "[Subs] [v2] My show - 01.mkv"
+
+	p, err := matcher.Compile(template)
+	if err != nil {
+		t.Fatalf("Compile() error = %v", err)
+	}
+
+	match := p.Match(filename)
+	if match == nil {
+		t.Fatal("Match() returned nil")
+	}
+
+	if got := match["Any"]; got != "Subs" {
+		t.Errorf("Match[\"Any\"] = %q; want \"Subs\" (Greedy match detected!)", got)
+	}
+	if got := match["Series"]; got != "[v2] My show" {
+		t.Errorf("Match[\"Series\"] = %q; want \"[v2] My show\"", got)
+	}
+}
