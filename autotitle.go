@@ -67,6 +67,14 @@ type Options struct {
 	Force     bool
 }
 
+func (o *Options) emit(t types.EventType, msg string) {
+	if o.Events != nil {
+		o.Events(types.Event{Type: t, Message: msg})
+	} else if t == types.EventWarning || t == types.EventError {
+		fmt.Fprintf(os.Stderr, "Warning: %s\n", msg)
+	}
+}
+
 // WithDryRun enables dry-run mode
 func WithDryRun() Option {
 	return func(o *Options) { o.DryRun = true }
@@ -170,7 +178,7 @@ func Rename(ctx context.Context, path string, opts ...Option) ([]types.RenameOpe
 
 	_, genErr := DBGen(ctx, target.URL, dbGenOpts...)
 	if genErr != nil {
-		fmt.Printf("Warning: Failed to update database: %v\n", genErr)
+		options.emit(types.EventWarning, fmt.Sprintf("Failed to update database: %v", genErr))
 	}
 
 	// Load media from database
@@ -189,7 +197,7 @@ func Rename(ctx context.Context, path string, opts ...Option) ([]types.RenameOpe
 	// Load global config
 	globalCfg, err := config.LoadGlobal()
 	if err != nil {
-		fmt.Printf("Warning: Failed to load global config: %v\n", err)
+		options.emit(types.EventWarning, fmt.Sprintf("Failed to load global config: %v", err))
 		globalCfg = &types.GlobalConfig{
 			API:    types.APIConfig{RateLimit: 2.0, Timeout: 30},
 			Backup: types.BackupConfig{Enabled: true, DirName: "backups"},
@@ -230,9 +238,10 @@ func Init(ctx context.Context, path string, opts ...Option) error {
 
 	// Load global config
 	globalCfg, _ := config.LoadGlobal()
+	defaults := config.GetDefaults()
 
-	mapFileName := config.Defaults.MapFile
-	formats := config.Defaults.Formats
+	mapFileName := defaults.MapFile
+	formats := defaults.Formats
 	if globalCfg != nil {
 		if globalCfg.MapFile != "" {
 			mapFileName = globalCfg.MapFile
@@ -248,62 +257,28 @@ func Init(ctx context.Context, path string, opts ...Option) error {
 			return fmt.Errorf("map file already exists: %s", mapPath)
 		}
 		// Warning when overriding
-		fmt.Printf("Warning: Overwriting existing map file: %s\n", mapPath)
+		options.emit(types.EventWarning, fmt.Sprintf("Overwriting existing map file: %s", mapPath))
 	}
 
-	// Try to detect pattern from files using global formats
-	var detectedPatterns []string
-	seenPatterns := make(map[string]bool)
-
-	entries, _ := os.ReadDir(absPath)
-	for _, e := range entries {
-		if e.IsDir() {
-			continue
-		}
-		ext := filepath.Ext(e.Name())
-		if len(ext) > 0 {
-			ext = ext[1:] // Remove leading dot
-		}
-		// Check if extension is in formats list
-		if slices.Contains(formats, ext) {
-			p := matcher.GuessPattern(e.Name())
-			if p != "" && !seenPatterns[p] {
-				detectedPatterns = append(detectedPatterns, p)
-				seenPatterns[p] = true
-			}
-		}
+	// Analyze directory for patterns and media presence
+	scanResult, err := config.Scan(absPath, formats)
+	if err != nil {
+		return fmt.Errorf("failed to analyze directory: %w", err)
 	}
 
-	if len(detectedPatterns) == 0 && len(entries) == 0 {
+	if !scanResult.HasMedia && scanResult.TotalFiles == 0 {
 		if !options.Force {
 			return fmt.Errorf("no files found in directory")
 		}
-		fmt.Println("Warning: No files found in directory. Use standard configuration.")
-	}
-
-	// Check if any media files were found
-	hasMedia := false
-	for _, e := range entries {
-		if e.IsDir() {
-			continue
-		}
-		ext := filepath.Ext(e.Name())
-		if len(ext) > 0 {
-			ext = ext[1:]
-		}
-		if slices.Contains(formats, ext) {
-			hasMedia = true
-			break
-		}
-	}
-
-	if !hasMedia && len(entries) > 0 {
+		options.emit(types.EventWarning, "No files found in directory. Use standard configuration.")
+	} else if !scanResult.HasMedia && scanResult.TotalFiles > 0 {
 		if !options.Force {
 			return fmt.Errorf("no media files found in directory (use --force to initialize anyway)")
 		}
-		fmt.Println("Warning: No media files found. Use standard configuration.")
+		options.emit(types.EventWarning, "No media files found. Use standard configuration.")
 	}
 
+	// Build configuration
 	url := options.URL
 	if url == "" {
 		url = "https://myanimelist.net/anime/XXXXX/Series_Name"
@@ -318,36 +293,24 @@ func Init(ctx context.Context, path string, opts ...Option) error {
 		offset = *options.Offset
 	}
 
-	// Use global patterns if detection failed
-	var cfg *config.Config
-	if len(detectedPatterns) == 0 && globalCfg != nil && len(globalCfg.Patterns) > 0 {
-		// Use patterns from global config
-		cfg = &config.Config{
-			Targets: []config.Target{},
-		}
+	// Generate default config
+	cfg := config.GenerateDefault(url, fillerURL, scanResult.DetectedPatterns, options.Separator, offset, options.Padding)
 
-		target := config.Target{
-			Path:      ".",
-			URL:       url,
-			FillerURL: fillerURL,
-			Patterns:  globalCfg.Patterns,
-		}
-
-		for i := range target.Patterns {
+	// If detection failed but we have global patterns, prefer those over hardcoded defaults
+	if len(scanResult.DetectedPatterns) == 0 && globalCfg != nil && len(globalCfg.Patterns) > 0 {
+		cfg.Targets[0].Patterns = globalCfg.Patterns
+		// Apply overrides to these global patterns
+		for i := range cfg.Targets[0].Patterns {
 			if offset != 0 {
-				target.Patterns[i].Output.Offset = offset
+				cfg.Targets[0].Patterns[i].Output.Offset = offset
 			}
 			if options.Separator != "" {
-				target.Patterns[i].Output.Separator = options.Separator
+				cfg.Targets[0].Patterns[i].Output.Separator = options.Separator
 			}
 			if options.Padding > 0 {
-				target.Patterns[i].Output.Padding = options.Padding
+				cfg.Targets[0].Patterns[i].Output.Padding = options.Padding
 			}
 		}
-		cfg.Targets = append(cfg.Targets, target)
-
-	} else {
-		cfg = config.GenerateDefault(url, fillerURL, detectedPatterns, options.Separator, offset, options.Padding)
 	}
 
 	return config.Save(mapPath, cfg)
