@@ -88,7 +88,7 @@ commitizen:
   pre_bump_hooks:
   - .github/src/bump-pkgbuild.sh
   tag_format: v$version
-  template: .github/src/changelog.j2
+  template: ./.github/src/changelog.j2
   update_changelog_on_bump: false
   version: 1.3.0
   version_scheme: semver
