@@ -1,0 +1,162 @@
+name: Update Distribution Packages
+run-name: "Update Distribution Packages: (${{ github.event_name == 'workflow_run' && 'Release' || 'Manual Fix' }})"
+
+on:
+  workflow_run:
+    workflows: ["Make GitHub Release"]
+    types:
+      - completed
+
+  push:
+    branches: [main]
+    paths:
+      - "PKGBUILD"
+      - ".github/workflows/update-packages.yml"
+
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version to publish (e.g., 1.4.0)'
+        required: false
+        type: string
+
+concurrency:
+  group: update-dist-packages
+  cancel-in-progress: true
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  get-info:
+    runs-on: ubuntu-latest
+    if: |
+      (github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success') ||
+      (github.event_name == 'push' && !startsWith(github.event.head_commit.message, 'chore(release):')) ||
+      (github.event_name == 'workflow_dispatch')
+
+    outputs:
+      version: ${{ steps.resolve-meta.outputs.version }}
+      is_manual: ${{ steps.resolve-meta.outputs.is_manual }}
+      pkgname: ${{ steps.resolve-meta.outputs.pkgname }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Resolve metadata
+        id: resolve-meta
+        run: |
+          # Get package name from repository name (lowercase)
+          PKGNAME=$(echo "${{ github.event.repository.name }}" | tr '[:upper:]' '[:lower:]')
+
+          # Workflow run
+          if [ "${{ github.event_name }}" == "workflow_run" ]; then
+            RAW_TAG="${{ github.event.workflow_run.head_branch }}"
+            if [[ "$RAW_TAG" == "main" || -z "$RAW_TAG" ]]; then
+              RAW_TAG=$(git describe --tags --abbrev=0)
+            fi
+
+            VERSION="${RAW_TAG#v}"
+            IS_MANUAL="false"
+
+          # Workflow dispatch with version input 
+          elif [ "${{ github.event_name }}" == "workflow_dispatch" ] && [ -n "${{ github.event.inputs.version }}" ]; then
+            VERSION="${{ github.event.inputs.version }}"
+            IS_MANUAL="true"
+
+          # Push or manual without version input: Read from file
+          else
+            VERSION=$(sed -n 's/^pkgver=//p' PKGBUILD | tr -d '"' | tr -d "'")
+            IS_MANUAL="true"
+          fi
+
+          echo "Package Name:     $PKGNAME"
+          echo "Detected Version: $VERSION"
+          echo "Is Manual Update: $IS_MANUAL"
+          
+          # Output core variables
+          echo "pkgname=$PKGNAME" >> "$GITHUB_OUTPUT"
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "is_manual=$IS_MANUAL" >> "$GITHUB_OUTPUT"
+
+  update-aur:
+    needs: get-info
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check AUR Status
+        id: check
+        run: |
+          VERSION="${{ needs.get-info.outputs.version }}"
+          PKGNAME="${{ needs.get-info.outputs.pkgname }}"
+          IS_MANUAL="${{ needs.get-info.outputs.is_manual }}"
+          
+          if [ "$IS_MANUAL" == "true" ]; then
+             echo "should_skip=false" >> "$GITHUB_OUTPUT"
+             echo "Manual update requested."
+          else
+             AUR_VERSION=$(curl -s "https://aur.archlinux.org/rpc/v5/info/$PKGNAME" | jq -r '.results[0].Version // empty' | cut -d'-' -f1)
+             echo "AUR Current Version: $AUR_VERSION"
+             
+             if [ "$AUR_VERSION" == "$VERSION" ]; then
+               echo "should_skip=true" >> "$GITHUB_OUTPUT"
+               echo "Reason: Version $VERSION already in AUR."
+             else
+               echo "should_skip=false" >> "$GITHUB_OUTPUT"
+             fi
+          fi
+
+      - name: Checkout repository
+        if: steps.check.outputs.should_skip != 'true'
+        uses: actions/checkout@v4
+
+      - name: Update PKGBUILD and Checksums
+        if: steps.check.outputs.should_skip != 'true'
+        run: |
+          docker run --rm \
+            -v "$PWD:/src" \
+            -w /src \
+            -e VERSION="${{ needs.get-info.outputs.version }}" \
+            -e IS_MANUAL="${{ needs.get-info.outputs.is_manual }}" \
+            archlinux:base-devel sh -c '
+              pacman -Sy --noconfirm pacman-contrib
+
+              # Update PKGBUILD
+              if [ "$IS_MANUAL" == "false" ]; then
+                sed -i "s/^pkgver=.*$/pkgver=$VERSION/" PKGBUILD
+                sed -i "s/^pkgrel=.*$/pkgrel=1/" PKGBUILD
+              fi
+
+              updpkgsums
+              sudo -u nobody makepkg --printsrcinfo > .SRCINFO
+              chown -R 1001:121 .
+            '
+
+      - name: Publish to AUR
+        if: steps.check.outputs.should_skip != 'true'
+        uses: KSXGitHub/github-actions-deploy-aur@v2.2.5
+        with:
+          pkgname: ${{ needs.get-info.outputs.pkgname }}
+          pkgbuild: ./PKGBUILD
+          commit_username: ${{ secrets.AUR_USERNAME }}
+          commit_email: ${{ secrets.AUR_EMAIL }}
+          ssh_private_key: ${{ secrets.AUR_SSH_PRIVATE_KEY }}
+          commit_message: "Update to ${{ needs.get-info.outputs.version }}"
+          ssh_keyscan_types: rsa,ecdsa,ed25519
+
+  update-winget:
+    needs: get-info
+    runs-on: windows-latest
+    steps:
+      - name: Publish to Winget
+        uses: vedantmgoyal2009/winget-releaser@v2
+        with:
+          identifier: ${{ github.repository_owner }}.${{ needs.get-info.outputs.pkgname }}
+          version: ${{ needs.get-info.outputs.version }}
+          release-tag: v${{ needs.get-info.outputs.version }}
+          installers-regex: '${{ needs.get-info.outputs.pkgname }}-windows-amd64\.exe$'
+          max-versions-to-keep: 4
+          token: ${{ secrets.WINGET_TOKEN }}
