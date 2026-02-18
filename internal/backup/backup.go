@@ -115,7 +115,7 @@ func (m *Manager) Restore(ctx context.Context, dir string) error {
 		// Only remove renamed file IF it's different from the original
 		if oldName != newName {
 			if _, err := os.Stat(renamedPath); err == nil {
-				os.Remove(renamedPath)
+				_ = os.Remove(renamedPath)
 			}
 		}
 	}
@@ -150,7 +150,7 @@ func (m *Manager) CleanAll(ctx context.Context) error {
 	}
 
 	for _, r := range records {
-		os.RemoveAll(r.Path) // Ignore individual errors
+		_ = os.RemoveAll(r.Path) // Ignore individual errors
 	}
 
 	// Clear registry
@@ -215,13 +215,13 @@ func copyFile(src, dst string) error {
 	if err != nil {
 		return err
 	}
-	defer in.Close()
+	defer func() { _ = in.Close() }()
 
 	out, err := os.Create(dst)
 	if err != nil {
 		return err
 	}
-	defer out.Close()
+	defer func() { _ = out.Close() }()
 
 	if _, err = io.Copy(out, in); err != nil {
 		return err

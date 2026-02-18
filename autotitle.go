@@ -164,10 +164,7 @@ func Rename(ctx context.Context, path string, opts ...Option) ([]types.RenameOpe
 		fillerURL = options.FillerURL
 	}
 
-	force := false
-	if options.Force {
-		force = true
-	}
+	force := options.Force
 
 	dbGenOpts := []Option{
 		WithFiller(fillerURL),

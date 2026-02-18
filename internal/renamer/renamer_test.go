@@ -51,7 +51,7 @@ func TestRenamer_Offset(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	f.Close()
+	_ = f.Close()
 
 	// Init renamer
 	r := New(&MockDB{}, types.BackupConfig{Enabled: false}, []string{"mkv"})
@@ -113,7 +113,7 @@ func TestRenamer_OffsetZeroOverride(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	f.Close()
+	_ = f.Close()
 
 	r := New(&MockDB{}, types.BackupConfig{Enabled: false}, []string{"mkv"})
 	r.WithOffset(0) // Explicitly set to 0 to override config

@@ -49,7 +49,7 @@ func (r *Repository) Save(ctx context.Context, media *types.Media) error {
 	pattern := filepath.Join(providerDir, media.ID+"@*.json")
 	if oldMatches, _ := filepath.Glob(pattern); len(oldMatches) > 0 {
 		for _, oldPath := range oldMatches {
-			os.Remove(oldPath)
+			_ = os.Remove(oldPath)
 		}
 	}
 

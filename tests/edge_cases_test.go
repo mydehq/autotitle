@@ -22,7 +22,7 @@ func testFillerEpisodes(t *testing.T) {
 	// File matches Ep 5
 	files := []string{"Series - 05.mkv", "Series - 06.mkv"}
 	for _, f := range files {
-		os.Create(filepath.Join(tmpDir, f))
+		_, _ = os.Create(filepath.Join(tmpDir, f))
 	}
 
 	mockDB := &MockDB{path: reqPath(tmpDir)}
@@ -69,7 +69,7 @@ func testFillerEpisodes(t *testing.T) {
 
 func testOffsetOutOfRange(t *testing.T) {
 	tmpDir := t.TempDir()
-	os.Create(filepath.Join(tmpDir, "Series - 01.mkv"))
+	_, _ = os.Create(filepath.Join(tmpDir, "Series - 01.mkv"))
 
 	mockDB := &MockDB{path: reqPath(tmpDir)}
 	media := &types.Media{
@@ -106,9 +106,9 @@ func testOffsetOutOfRange(t *testing.T) {
 
 func testUnmatchedFiles(t *testing.T) {
 	tmpDir := t.TempDir()
-	os.Create(filepath.Join(tmpDir, "Series - 01.mkv"))
-	os.Create(filepath.Join(tmpDir, "readme.txt"))       // Should be ignored
-	os.Create(filepath.Join(tmpDir, "Unknown - 99.avi")) // Should be ignored (pattern mismatch)
+	_, _ = os.Create(filepath.Join(tmpDir, "Series - 01.mkv"))
+	_, _ = os.Create(filepath.Join(tmpDir, "readme.txt"))       // Should be ignored
+	_, _ = os.Create(filepath.Join(tmpDir, "Unknown - 99.avi")) // Should be ignored (pattern mismatch)
 
 	mockDB := &MockDB{path: reqPath(tmpDir)}
 	media := &types.Media{

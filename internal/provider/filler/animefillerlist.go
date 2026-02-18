@@ -77,7 +77,7 @@ func (s *AnimeFillerListSource) FetchFillers(ctx context.Context, slug string) (
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch filler list: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode == http.StatusNotFound {
 		return nil, nil // No filler list found

@@ -170,7 +170,7 @@ func (p *MALProvider) fetchAnimeInfo(ctx context.Context, malID int) (*animeInfo
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch anime info: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode == 429 {
 		// Rate limited, wait and retry
@@ -228,13 +228,13 @@ func (p *MALProvider) fetchEpisodes(ctx context.Context, malID int) ([]types.Epi
 		}
 
 		if resp.StatusCode == 429 {
-			resp.Body.Close()
+			_ = resp.Body.Close()
 			time.Sleep(2 * time.Second)
 			continue
 		}
 
 		if resp.StatusCode != http.StatusOK {
-			resp.Body.Close()
+			_ = resp.Body.Close()
 			return nil, types.ErrAPIError{
 				Service:    "Jikan",
 				StatusCode: resp.StatusCode,
@@ -254,10 +254,10 @@ func (p *MALProvider) fetchEpisodes(ctx context.Context, malID int) ([]types.Epi
 		}
 
 		if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
-			resp.Body.Close()
+			_ = resp.Body.Close()
 			return nil, fmt.Errorf("failed to parse episodes: %w", err)
 		}
-		resp.Body.Close()
+		_ = resp.Body.Close()
 
 		for _, ep := range result.Data {
 			episodes = append(episodes, types.Episode{

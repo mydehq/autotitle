@@ -71,9 +71,9 @@ func TestRepository_Search(t *testing.T) {
 	media2 := &types.Media{ID: "2", Provider: "mal", Title: "Naruto Shippuden", Slug: "naruto-shippuden"}
 	media3 := &types.Media{ID: "3", Provider: "tmdb", Title: "Bleach", Slug: "bleach"}
 
-	repo.Save(ctx, media1)
-	repo.Save(ctx, media2)
-	repo.Save(ctx, media3)
+	_ = repo.Save(ctx, media1)
+	_ = repo.Save(ctx, media2)
+	_ = repo.Save(ctx, media3)
 
 	tests := []struct {
 		query     string
@@ -108,7 +108,7 @@ func TestRepository_Delete(t *testing.T) {
 
 	ctx := context.Background()
 	media := &types.Media{ID: "1", Provider: "mal", Title: "Test"}
-	repo.Save(ctx, media)
+	_ = repo.Save(ctx, media)
 
 	if !repo.Exists("mal", "1") {
 		t.Fatal("Exists returned false before delete")
