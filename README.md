@@ -29,7 +29,7 @@ winget install mydehq.autotitle
 
 # Or build manually
 git clone https://github.com/mydehq/autotitle.git && cd autotitle
-make install
+mise run install
 ```
 
 ### As Library

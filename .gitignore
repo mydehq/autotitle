@@ -2,6 +2,7 @@ GEMINI.md
 
 # Build artifacts
 bin/
+dist/
 autotitle
 
 # Testing

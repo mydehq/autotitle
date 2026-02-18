@@ -25,63 +25,41 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Setup Go
-        uses: actions/setup-go@v5
-        with:
-          go-version-file: 'go.mod'
-          cache: true
+      - name: Setup Mise
+        uses: jdx/mise-action@v3
 
-      - name: Install uv
-        uses: astral-sh/setup-uv@v7
+      - name: Install Dependencies
+        run: mise setup
 
-      - name: Get Version and Changelog
-        id: get_version
+      - name: Prepare Release Metadata
+        id: meta
         run: |
-          # Get Repo name in lower case
-          repo_name=$(echo "${GITHUB_REPOSITORY#*/}" | tr '[:upper:]' '[:lower:]')
+          # VERSION and IS_PRERELEASE detection
+          clean_ver=${VERSION#v}
+          echo "VERSION=$clean_ver" >> "$GITHUB_ENV"
 
-          # Get latest Tag & version
-          latest_tag=$(git describe --tags --abbrev=0 HEAD)
-          latest_ver=${latest_tag#v}
+          if [[ "$clean_ver" == 0* ]]; then
+            echo "IS_PRERELEASE=true" >> "$GITHUB_ENV"
+          else
+            echo "IS_PRERELEASE=false" >> "$GITHUB_ENV"
+          fi
 
-          # Get changelog using commitizen
-          changelog=$(uvx --from commitizen cz changelog "${latest_tag}..${latest_tag}" --dry-run | sed -n '/^###/,$p')
-
-          #---------- Export to github_env ------------
-
-          echo "VERSION=$latest_ver" >> "$GITHUB_ENV"
-          echo "REPO_NAME=$repo_name" >> "$GITHUB_ENV"
           {
             echo "CHANGELOG<<EOF"
-            if [[ -n "$changelog" ]]; then
+            if [[ -n "$LATEST_TAG" ]]; then
               echo "## What's New?"
-              echo "$changelog"
+              mise run get-changelog
             else
               echo "No changes to note."
             fi
             echo "EOF"
           } >> "$GITHUB_ENV"
 
-          if [[ "$latest_ver" == 0* ]]; then
-            echo "IS_PRERELEASE=true" >> "$GITHUB_ENV"
-          else
-            echo "IS_PRERELEASE=false" >> "$GITHUB_ENV"
-          fi
+      - name: Build and Package
+        run: mise package
 
-      - name: Build binaries for multiple platforms
-        run: |
-          # Use Makefile to build all platforms
-          make release-all
-          
-          # Move binaries to dist directory for packaging
-          mkdir -p dist
-          mv bin/* dist/
-
-      - name: Generate checksums
-        run: |
-          cd dist
-          sha256sum * > checksums.txt
-          cat checksums.txt
+      - name: Show Checksums
+        run: cat dist/checksums.txt
 
       - name: Publish GitHub Release
         uses: softprops/action-gh-release@v2
