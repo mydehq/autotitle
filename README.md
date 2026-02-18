@@ -1,6 +1,14 @@
+<div align="center">
+
+<img src="./src/img/icon.svg" alt="Autotitle" width="90">
+
 # Autotitle
 
 A CLI tool & Go library for automatically renaming media files (anime, TV shows) with proper titles and detecting filler episodes.
+
+
+</div>
+
 
 ## Features
 
