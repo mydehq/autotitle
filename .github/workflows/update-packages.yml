@@ -122,7 +122,7 @@ jobs:
             -e VERSION="${{ needs.get-info.outputs.version }}" \
             -e IS_MANUAL="${{ needs.get-info.outputs.is_manual }}" \
             archlinux:base-devel sh -c '
-              pacman -Sy --noconfirm pacman-contrib
+              pacman -Sy --noconfirm pacman-contrib mise
 
               # Update PKGBUILD
               if [ "$IS_MANUAL" == "false" ]; then
