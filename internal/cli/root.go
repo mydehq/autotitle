@@ -49,10 +49,24 @@ func init() {
 	RootCmd.Flags().IntVarP(&flagOffset, "offset", "o", 0, "Episode number offset (db_num = local_num + offset)")
 	RootCmd.Flags().StringVarP(&flagFillerURL, "filler", "F", "", "Override filler source URL")
 	RootCmd.Flags().BoolVarP(&flagForce, "force", "f", false, "Force database refresh")
+	RootCmd.PersistentFlags().BoolVarP(&flagQuiet, "quiet", "q", false, "Suppress output except errors")
 
 	// Default logger setup (before flags parse)
 	logger = log.New(os.Stdout)
 	configureStyles()
+
+	autotitle.SetDefaultEventHandler(func(e autotitle.Event) {
+		switch e.Type {
+		case autotitle.EventSuccess:
+			logger.Info(e.Message)
+		case autotitle.EventWarning:
+			logger.Warn(e.Message)
+		case autotitle.EventError:
+			logger.Error(e.Message)
+		default:
+			logger.Debug(e.Message)
+		}
+	})
 
 	colorizeHelp(RootCmd)
 }
@@ -116,18 +130,7 @@ func runRename(ctx context.Context, cmd *cobra.Command, path string) {
 	}
 
 	if !flagQuiet {
-		opts = append(opts, autotitle.WithEvents(func(e autotitle.Event) {
-			switch e.Type {
-			case autotitle.EventSuccess:
-				logger.Info(e.Message)
-			case autotitle.EventWarning:
-				logger.Warn(e.Message)
-			case autotitle.EventError:
-				logger.Error(e.Message)
-			default:
-				logger.Debug(e.Message)
-			}
-		}))
+		// No need to pass events manually anymore, global default is used
 	}
 
 	ops, err := autotitle.Rename(ctx, path, opts...)

@@ -30,8 +30,10 @@ type (
 	Episode         = types.Episode
 	Event           = types.Event
 	EventHandler    = types.EventHandler
-	Pattern         = matcher.Pattern
-	TemplateVars    = matcher.TemplateVars
+	MediaSummary    = types.MediaSummary
+
+	Pattern      = matcher.Pattern
+	TemplateVars = matcher.TemplateVars
 )
 
 // Event Types & Status
@@ -67,9 +69,19 @@ type Options struct {
 	Force     bool
 }
 
+var defaultEvents types.EventHandler
+
+// SetDefaultEventHandler sets the global event handler for all operations
+// that don't specify their own handler.
+func SetDefaultEventHandler(h types.EventHandler) {
+	defaultEvents = h
+}
+
 func (o *Options) emit(t types.EventType, msg string) {
 	if o.Events != nil {
 		o.Events(types.Event{Type: t, Message: msg})
+	} else if defaultEvents != nil {
+		defaultEvents(types.Event{Type: t, Message: msg})
 	} else if t == types.EventWarning || t == types.EventError {
 		fmt.Fprintf(os.Stderr, "Warning: %s\n", msg)
 	}

@@ -85,7 +85,7 @@ targets:
 
 ## Documentation
 
-📚 **[Full Documentation](https://mydehq.github.io/docs/autotitle)** — Complete guides, commands, flags, configuration reference, and library API
+📚 **[Full Documentation](https://mydehq.github.io/docs/autotitle)** — Complete guides, commands, flags, configuration reference, and [library API](https://mydehq.github.io/docs/autotitle/library)
 
 ## Data Sources
 
