@@ -51,6 +51,12 @@ type BackupConfig struct {
 	DirName string `yaml:"dir_name"`
 }
 
+// TaggingConfig holds metadata tagging settings
+type TaggingConfig struct {
+	// Enabled controls MKV metadata tagging. If nil, auto-detect mkvpropedit.
+	Enabled *bool `yaml:"enabled,omitempty"`
+}
+
 // GetTitle returns the requested title variant with fallback to default
 func (m *Media) GetTitle(variant string) string {
 	switch variant {
@@ -91,6 +97,7 @@ type RenameOperation struct {
 	SourcePath string          `json:"source_path"`
 	TargetPath string          `json:"target_path"`
 	Episode    *Episode        `json:"episode,omitempty"`
+	Series     string          `json:"series,omitempty"` // Series title (populated after match)
 	Status     OperationStatus `json:"status"`
 	Error      string          `json:"error,omitempty"`
 }

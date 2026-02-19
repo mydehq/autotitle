@@ -35,11 +35,12 @@ type OutputConfig struct {
 
 // GlobalConfig represents the global configuration file (~/.config/autotitle/config.yml)
 type GlobalConfig struct {
-	MapFile  string       `yaml:"map_file"`
-	Patterns []Pattern    `yaml:"patterns"`
-	Formats  []string     `yaml:"formats"`
-	API      APIConfig    `yaml:"api"`
-	Backup   BackupConfig `yaml:"backup"`
+	MapFile  string        `yaml:"map_file"`
+	Patterns []Pattern     `yaml:"patterns"`
+	Formats  []string      `yaml:"formats"`
+	API      APIConfig     `yaml:"api"`
+	Backup   BackupConfig  `yaml:"backup"`
+	Tagging  TaggingConfig `yaml:"tagging"`
 }
 
 // Clone returns a deep copy of the configuration

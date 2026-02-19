@@ -16,6 +16,7 @@ var (
 	flagNoBackup  bool
 	flagVerbose   bool
 	flagQuiet     bool
+	flagNoTag     bool
 	flagOffset    int
 	flagFillerURL string
 	flagForce     bool
@@ -49,6 +50,7 @@ func init() {
 	RootCmd.Flags().IntVarP(&flagOffset, "offset", "o", 0, "Episode number offset (db_num = local_num + offset)")
 	RootCmd.Flags().StringVarP(&flagFillerURL, "filler", "F", "", "Override filler source URL")
 	RootCmd.Flags().BoolVarP(&flagForce, "force", "f", false, "Force database refresh")
+	RootCmd.Flags().BoolVarP(&flagNoTag, "no-tag", "T", false, "Disable MKV metadata tagging (mkvpropedit)")
 	RootCmd.PersistentFlags().BoolVarP(&flagQuiet, "quiet", "q", false, "Suppress output except errors")
 
 	// Default logger setup (before flags parse)

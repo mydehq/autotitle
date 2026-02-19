@@ -12,6 +12,7 @@ import (
 	"github.com/mydehq/autotitle/internal/backup"
 	"github.com/mydehq/autotitle/internal/config"
 	"github.com/mydehq/autotitle/internal/matcher"
+	"github.com/mydehq/autotitle/internal/tagger"
 	"github.com/mydehq/autotitle/internal/types"
 )
 
@@ -22,6 +23,7 @@ type Renamer struct {
 	Events        types.EventHandler
 	DryRun        bool
 	NoBackup      bool
+	Tag           bool
 	BackupConfig  types.BackupConfig
 	Formats       []string
 	Offset        *int
@@ -61,6 +63,12 @@ func (r *Renamer) WithDryRun() *Renamer {
 // WithNoBackup disables backup creation
 func (r *Renamer) WithNoBackup() *Renamer {
 	r.NoBackup = true
+	return r
+}
+
+// WithTagging enables post-rename MKV metadata embedding via mkvpropedit.
+func (r *Renamer) WithTagging(enabled bool) *Renamer {
+	r.Tag = enabled
 	return r
 }
 
@@ -190,6 +198,7 @@ func (r *Renamer) Execute(ctx context.Context, dir string, target *types.Target,
 			SourcePath: sourcePath,
 			TargetPath: targetPath,
 			Episode:    ep,
+			Series:     media.Title,
 			Status:     types.StatusPending,
 		}
 
@@ -294,7 +303,26 @@ func (r *Renamer) performRenames(ops []types.RenameOperation) {
 		} else {
 			ops[i].Status = types.StatusSuccess
 			r.emit(types.Event{Type: types.EventSuccess, Message: fmt.Sprintf("Renamed: %s → %s", filepath.Base(op.SourcePath), filepath.Base(op.TargetPath))})
+
+			if r.Tag && op.Episode != nil {
+				r.tagFile(op.TargetPath, op.Episode, ops[i].Series)
+			}
 		}
+	}
+}
+
+func (r *Renamer) tagFile(path string, ep *types.Episode, show string) {
+	info := tagger.TagInfo{
+		Title:       ep.Title,
+		Show:        show,
+		EpisodeID:   fmt.Sprintf("%d", ep.Number),
+		EpisodeSort: ep.Number,
+		AirDate:     ep.AirDate,
+	}
+	if err := tagger.TagFile(context.Background(), path, info); err != nil {
+		r.emit(types.Event{Type: types.EventWarning, Message: fmt.Sprintf("Tagging failed for %s: %v", filepath.Base(path), err)})
+	} else {
+		r.emit(types.Event{Type: types.EventInfo, Message: fmt.Sprintf("Tagged: %s", filepath.Base(path))})
 	}
 }
 

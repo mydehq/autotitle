@@ -7,7 +7,7 @@ arch=('x86_64' 'aarch64')
 url="https://github.com/mydehq/autotitle"
 license=('GPL3')
 
-depends=('glibc')
+depends=('glibc' 'mkvtoolnix-cli' 'atomicparsley')
 makedepends=('mise')
 
 source=("${pkgname}-${pkgver}.tar.gz::${url}/archive/v${pkgver}.tar.gz")

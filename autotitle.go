@@ -10,6 +10,7 @@ import (
 	"os"
 	"path/filepath"
 	"slices"
+	"strings"
 	"time"
 
 	"github.com/mydehq/autotitle/internal/backup"
@@ -19,6 +20,7 @@ import (
 	"github.com/mydehq/autotitle/internal/provider"
 	_ "github.com/mydehq/autotitle/internal/provider/filler" // Register filler sources
 	"github.com/mydehq/autotitle/internal/renamer"
+	"github.com/mydehq/autotitle/internal/tagger"
 	"github.com/mydehq/autotitle/internal/types"
 	"github.com/mydehq/autotitle/internal/version"
 )
@@ -57,6 +59,7 @@ type Option func(*Options)
 type Options struct {
 	DryRun   bool
 	NoBackup bool
+	NoTag    bool
 
 	Events types.EventHandler
 	Offset *int
@@ -130,6 +133,11 @@ func WithPadding(p int) Option {
 // WithForce enables overwriting existing config for Init
 func WithForce() Option {
 	return func(o *Options) { o.Force = true }
+}
+
+// WithNoTagging disables MKV metadata embedding even if mkvpropedit is available.
+func WithNoTagging() Option {
+	return func(o *Options) { o.NoTag = true }
 }
 
 // Rename renames media files in the specified directory
@@ -229,6 +237,13 @@ func Rename(ctx context.Context, path string, opts ...Option) ([]types.RenameOpe
 		r.WithOffset(*options.Offset)
 	}
 
+	// Wire tagging: on by default if mkvpropedit is available, off if --no-tag
+	taggingEnabled := !options.NoTag && tagger.IsAvailable()
+	if globalCfg.Tagging.Enabled != nil {
+		taggingEnabled = *globalCfg.Tagging.Enabled && !options.NoTag
+	}
+	r.WithTagging(taggingEnabled)
+
 	// Execute rename
 	return r.Execute(ctx, path, target, media)
 }
@@ -323,6 +338,104 @@ func Init(ctx context.Context, path string, opts ...Option) error {
 	}
 
 	return config.Save(mapPath, cfg)
+}
+
+// Tag embeds MKV metadata into all matched files in the given directory
+// without renaming them. Requires mkvpropedit (MKVToolNix) to be installed.
+func Tag(ctx context.Context, path string, opts ...Option) error {
+	options := &Options{}
+	for _, opt := range opts {
+		opt(options)
+	}
+
+	if !tagger.IsAvailable() {
+		return fmt.Errorf("mkvpropedit not found; please install MKVToolNix")
+	}
+
+	// Load config
+	cfg, err := config.Load(path)
+	if err != nil {
+		return err
+	}
+	target, err := cfg.ResolveTarget(path)
+	if err != nil {
+		return err
+	}
+	prov, err := provider.GetProviderForURL(target.URL)
+	if err != nil {
+		return err
+	}
+	id, err := prov.ExtractID(target.URL)
+	if err != nil {
+		return err
+	}
+	db, err := database.NewRepository("")
+	if err != nil {
+		return err
+	}
+	media, err := db.Load(ctx, prov.Name(), id)
+	if err != nil {
+		return err
+	}
+	if media == nil {
+		return types.ErrDatabaseNotFound{Provider: prov.Name(), ID: id}
+	}
+
+	// Walk directory and tag MKV files that have matching episodes by filename
+	entries, err := os.ReadDir(path)
+	if err != nil {
+		return fmt.Errorf("failed to read directory: %w", err)
+	}
+
+	evtFn := options.Events
+	if evtFn == nil {
+		evtFn = defaultEvents
+	}
+	emit := func(t types.EventType, msg string) {
+		if evtFn != nil {
+			evtFn(types.Event{Type: t, Message: msg})
+		}
+	}
+
+	for _, entry := range entries {
+		if entry.IsDir() {
+			continue
+		}
+		name := entry.Name()
+		if !strings.EqualFold(filepath.Ext(name), ".mkv") {
+			continue
+		}
+		// Try to match episode number from filename using media episode list
+		var matchedEp *types.Episode
+		for i := range media.Episodes {
+			ep := &media.Episodes[i]
+			// Simple heuristic: filename contains the episode number
+			epStr := fmt.Sprintf("%d", ep.Number)
+			if strings.Contains(name, epStr) {
+				matchedEp = ep
+				break
+			}
+		}
+		if matchedEp == nil {
+			emit(types.EventInfo, fmt.Sprintf("Skipped (no episode match): %s", name))
+			continue
+		}
+
+		info := tagger.TagInfo{
+			Title:       matchedEp.Title,
+			Show:        media.Title,
+			EpisodeID:   fmt.Sprintf("%d", matchedEp.Number),
+			EpisodeSort: matchedEp.Number,
+			AirDate:     matchedEp.AirDate,
+		}
+		filePath := filepath.Join(path, name)
+		if err := tagger.TagFile(ctx, filePath, info); err != nil {
+			emit(types.EventWarning, fmt.Sprintf("Tagging failed for %s: %v", name, err))
+		} else {
+			emit(types.EventSuccess, fmt.Sprintf("Tagged: %s", name))
+		}
+	}
+	return nil
 }
 
 // DBGen generates a database from a provider URL
