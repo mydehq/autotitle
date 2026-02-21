@@ -22,6 +22,18 @@ type Provider interface {
 
 	// Configure updates provider settings (optional, can be no-op)
 	Configure(cfg *APIConfig)
+
+	// Search queries the provider and returns matching media
+	Search(ctx context.Context, query string) ([]SearchResult, error)
+}
+
+// SearchResult represents a normalized search response
+type SearchResult struct {
+	Provider string
+	ID       string
+	Title    string
+	Year     int
+	URL      string
 }
 
 // FillerSource is a source for filler episode data (decoupled from providers)

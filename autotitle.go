@@ -33,6 +33,10 @@ type (
 	Event           = types.Event
 	EventHandler    = types.EventHandler
 	MediaSummary    = types.MediaSummary
+	SearchResult    = types.SearchResult
+	MediaType       = types.MediaType
+	OperationStatus = types.OperationStatus
+	EventType       = types.EventType
 
 	Pattern      = matcher.Pattern
 	TemplateVars = matcher.TemplateVars
@@ -70,6 +74,9 @@ type Options struct {
 	Separator string
 	Padding   int
 	Force     bool
+
+	// Search options
+	Provider string
 }
 
 var defaultEvents types.EventHandler
@@ -138,6 +145,11 @@ func WithForce() Option {
 // WithNoTagging disables MKV metadata embedding even if mkvpropedit is available.
 func WithNoTagging() Option {
 	return func(o *Options) { o.NoTag = true }
+}
+
+// WithProvider filters search results to a specific provider
+func WithProvider(provider string) Option {
+	return func(o *Options) { o.Provider = provider }
 }
 
 // Rename renames media files in the specified directory
@@ -527,6 +539,51 @@ func DBGen(ctx context.Context, url string, opts ...Option) (bool, error) {
 	return true, nil
 }
 
+// Search queries the configured providers for media matching the query.
+// If WithProvider is used, it only queries that specific provider.
+func Search(ctx context.Context, query string, opts ...Option) ([]types.SearchResult, error) {
+	options := &Options{}
+	for _, opt := range opts {
+		opt(options)
+	}
+
+	// Load global config to configure provider
+	globalCfg, _ := config.LoadGlobal()
+	var results []types.SearchResult
+
+	if options.Provider != "" {
+		prov, err := provider.GetProvider(options.Provider)
+		if err != nil {
+			return nil, err
+		}
+		if globalCfg != nil {
+			prov.Configure(&globalCfg.API)
+		}
+		res, err := prov.Search(ctx, query)
+		if err != nil {
+			return nil, err
+		}
+		results = append(results, res...)
+	} else {
+		for _, name := range provider.ListProviders() {
+			prov, err := provider.GetProvider(name)
+			if err != nil {
+				continue
+			}
+			if globalCfg != nil {
+				prov.Configure(&globalCfg.API)
+			}
+			res, err := prov.Search(ctx, query)
+			if err != nil {
+				continue
+			}
+			results = append(results, res...)
+		}
+	}
+
+	return results, nil
+}
+
 // DBList lists all cached databases
 func DBList(ctx context.Context, providerFilter string) ([]types.MediaSummary, error) {
 	db, err := database.NewRepository("")
@@ -635,6 +692,7 @@ func Version() string {
 var (
 	GetProviderForURL     = provider.GetProviderForURL
 	GetFillerSourceForURL = provider.GetFillerSourceForURL
+	GetProvider           = provider.GetProvider
 	ListProviders         = provider.ListProviders
 	ListFillerSources     = provider.ListFillerSources
 )

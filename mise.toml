@@ -25,14 +25,21 @@ run = "mise install --yes && go mod download"
 [tasks.build]
 description = "Build development binary"
 sources = ["**/*.go", "go.mod", "go.sum"]
-outputs = ["{{env.BIN_DIR}}/{{env.BINARY_NAME}}"]
-run = "go build -ldflags \"$LDFLAGS_BASE\" -o {{env.BIN_DIR}}/{{env.BINARY_NAME}} ./cmd/autotitle"
+outputs = [
+    "{{env.BIN_DIR}}/{{env.BINARY_NAME}}",
+    "{{env.BIN_DIR}}/{{env.BINARY_NAME}}-tui",
+]
+run = """
+    go build -ldflags "$LDFLAGS_BASE" -o {{env.BIN_DIR}}/{{env.BINARY_NAME}} ./cmd/autotitle
+    go build -ldflags "$LDFLAGS_BASE" -o {{env.BIN_DIR}}/{{env.BINARY_NAME}}-tui ./cmd/autotitle-tui
+"""
 
 [tasks.release]
 description = "Build release binary (stripped, optimized)"
 run = """
     mise install go
-    go build -trimpath -ldflags \"$LDFLAGS_RELEASE\" -o {{env.BIN_DIR}}/{{env.BINARY_NAME}} ./cmd/autotitle
+    go build -trimpath -ldflags "$LDFLAGS_RELEASE" -o {{env.BIN_DIR}}/{{env.BINARY_NAME}} ./cmd/autotitle
+    go build -trimpath -ldflags "$LDFLAGS_RELEASE" -o {{env.BIN_DIR}}/{{env.BINARY_NAME}}-tui ./cmd/autotitle-tui
 """
 
 [tasks.release-all]
@@ -42,19 +49,24 @@ run = """
     mkdir -p {{env.BIN_DIR}}
     # Linux
     GOOS=linux GOARCH=amd64 go build -trimpath -ldflags "$LDFLAGS_RELEASE" -o {{env.BIN_DIR}}/{{env.BINARY_NAME}}-linux-amd64 ./cmd/autotitle
+    GOOS=linux GOARCH=amd64 go build -trimpath -ldflags "$LDFLAGS_RELEASE" -o {{env.BIN_DIR}}/{{env.BINARY_NAME}}-tui-linux-amd64 ./cmd/autotitle-tui
     GOOS=linux GOARCH=arm64 go build -trimpath -ldflags "$LDFLAGS_RELEASE" -o {{env.BIN_DIR}}/{{env.BINARY_NAME}}-linux-arm64 ./cmd/autotitle
+    GOOS=linux GOARCH=arm64 go build -trimpath -ldflags "$LDFLAGS_RELEASE" -o {{env.BIN_DIR}}/{{env.BINARY_NAME}}-tui-linux-arm64 ./cmd/autotitle-tui
     # macOS
     GOOS=darwin GOARCH=amd64 go build -trimpath -ldflags "$LDFLAGS_RELEASE" -o {{env.BIN_DIR}}/{{env.BINARY_NAME}}-darwin-amd64 ./cmd/autotitle
+    GOOS=darwin GOARCH=amd64 go build -trimpath -ldflags "$LDFLAGS_RELEASE" -o {{env.BIN_DIR}}/{{env.BINARY_NAME}}-tui-darwin-amd64 ./cmd/autotitle-tui
     GOOS=darwin GOARCH=arm64 go build -trimpath -ldflags "$LDFLAGS_RELEASE" -o {{env.BIN_DIR}}/{{env.BINARY_NAME}}-darwin-arm64 ./cmd/autotitle
+    GOOS=darwin GOARCH=arm64 go build -trimpath -ldflags "$LDFLAGS_RELEASE" -o {{env.BIN_DIR}}/{{env.BINARY_NAME}}-tui-darwin-arm64 ./cmd/autotitle-tui
     # Windows
     GOOS=windows GOARCH=amd64 go build -trimpath -ldflags "$LDFLAGS_RELEASE" -o {{env.BIN_DIR}}/{{env.BINARY_NAME}}-windows-amd64.exe ./cmd/autotitle
+    GOOS=windows GOARCH=amd64 go build -trimpath -ldflags "$LDFLAGS_RELEASE" -o {{env.BIN_DIR}}/{{env.BINARY_NAME}}-tui-windows-amd64.exe ./cmd/autotitle-tui
 """
 
 [tasks.install-bin]
 description = "Install optimized binary to GOPATH/bin"
 run = """
     mise install go
-    go install -ldflags \"$LDFLAGS_RELEASE\" ./cmd/autotitle
+    go install -ldflags "$LDFLAGS_RELEASE" ./cmd/...
 """
 
 [tasks.clean]
@@ -86,3 +98,7 @@ run = "golangci-lint run ./..."
 [tasks.get-changelog]
 description = "Get changelog"
 run = "cz --config $CZ_CONFIG changelog \"{{ env.LATEST_TAG}}..{{env.LATEST_TAG}}\" --dry-run | sed -n '/^###/,$p'"
+
+[tasks.bump]
+description = "Bump version"
+run = "cz --config $CZ_CONFIG bump"

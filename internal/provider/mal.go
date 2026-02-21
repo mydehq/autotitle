@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"net/url"
 	"regexp"
 	"strconv"
 	"strings"
@@ -274,6 +275,75 @@ func (p *MALProvider) fetchEpisodes(ctx context.Context, malID int) ([]types.Epi
 	}
 
 	return episodes, nil
+}
+
+func (p *MALProvider) Search(ctx context.Context, query string) ([]types.SearchResult, error) {
+	p.sleep()
+
+	urlStr := fmt.Sprintf("%s/anime?q=%s&limit=5", jikanAPIURL, url.QueryEscape(query))
+	req, err := http.NewRequestWithContext(ctx, "GET", urlStr, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	resp, err := p.client.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("failed to search anime: %w", err)
+	}
+	defer func() { _ = resp.Body.Close() }()
+
+	if resp.StatusCode == 429 {
+		time.Sleep(2 * time.Second)
+		return p.Search(ctx, query)
+	}
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, types.ErrAPIError{
+			Service:    "Jikan Search",
+			StatusCode: resp.StatusCode,
+			Message:    fmt.Sprintf("failed to search for %q", query),
+		}
+	}
+
+	var result struct {
+		Data []struct {
+			MalID int    `json:"mal_id"`
+			Title string `json:"title"`
+			Year  *int   `json:"year"`
+			Aired struct {
+				Prop struct {
+					From struct {
+						Year *int `json:"year"`
+					} `json:"from"`
+				} `json:"prop"`
+			} `json:"aired"`
+			URL string `json:"url"`
+		} `json:"data"`
+	}
+
+	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+		return nil, fmt.Errorf("failed to parse search results: %w", err)
+	}
+
+	var searchResults []types.SearchResult
+	for _, item := range result.Data {
+		var year int
+		if item.Year != nil {
+			year = *item.Year
+		} else if item.Aired.Prop.From.Year != nil {
+			year = *item.Aired.Prop.From.Year
+		}
+
+		searchResults = append(searchResults, types.SearchResult{
+			Provider: p.Name(),
+			ID:       strconv.Itoa(item.MalID),
+			Title:    item.Title,
+			Year:     year,
+			URL:      item.URL,
+		})
+	}
+
+	return searchResults, nil
 }
 
 func (p *MALProvider) sleep() {

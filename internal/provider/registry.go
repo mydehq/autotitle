@@ -31,6 +31,16 @@ func GetProviderForURL(url string) (types.Provider, error) {
 	return nil, types.ErrProviderNotFound{URL: url}
 }
 
+// GetProvider finds a provider by its name
+func GetProvider(name string) (types.Provider, error) {
+	for _, p := range providers {
+		if p.Name() == name {
+			return p, nil
+		}
+	}
+	return nil, types.ErrProviderNotFound{URL: name}
+}
+
 // GetFillerSourceForURL finds the filler source that can handle the given URL
 func GetFillerSourceForURL(url string) (types.FillerSource, error) {
 	for _, s := range fillerSources {
