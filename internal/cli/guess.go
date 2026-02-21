@@ -19,7 +19,7 @@ var guessPatternCmd = &cobra.Command{
 		if len(args) > 0 {
 			path = args[0]
 		}
-		runGuessPattern(cmd, path)
+		runGuessPattern(path)
 	},
 }
 
@@ -27,7 +27,7 @@ func init() {
 	RootCmd.AddCommand(guessPatternCmd)
 }
 
-func runGuessPattern(cmd *cobra.Command, path string) {
+func runGuessPattern(path string) {
 	absPath, err := filepath.Abs(path)
 	if err != nil {
 		logger.Error(fmt.Sprintf("Failed to resolve path: %v", err))
