@@ -15,5 +15,4 @@ Project Overview.docx
 # Backup directories
 _backup/
 BKP/
-*tui/
 *.code-workspace
