@@ -7,11 +7,11 @@ import (
 	"github.com/spf13/cobra"
 )
 
-var flagCleanGlobal bool
+var flagCleanAll bool
 
 var cleanCmd = &cobra.Command{
 	Use:   "clean [path]",
-	Short: "Remove backup directory (-g for all backups globally)",
+	Short: "Remove backup directory (-a for all backups globally)",
 	Args:  cobra.MaximumNArgs(1),
 	Run: func(cmd *cobra.Command, args []string) {
 		runClean(cmd, args)
@@ -20,12 +20,12 @@ var cleanCmd = &cobra.Command{
 
 func init() {
 	RootCmd.AddCommand(cleanCmd)
-	cleanCmd.Flags().BoolVarP(&flagCleanGlobal, "global", "g", false, "Remove all backups globally")
+	cleanCmd.Flags().BoolVarP(&flagCleanAll, "all", "a", false, "Remove all backups globally")
 }
 
 func runClean(cmd *cobra.Command, args []string) {
 	ctx := cmd.Context()
-	if flagCleanGlobal {
+	if flagCleanAll {
 		if err := autotitle.CleanAll(ctx); err != nil {
 			logger.Error("Failed to clean global backups", "error", err)
 			os.Exit(1)
