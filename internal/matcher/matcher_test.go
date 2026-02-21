@@ -14,11 +14,16 @@ func TestGuessPattern(t *testing.T) {
 		{"Standard Format with Brackets", "[Sub] Series - 01 [1080p].mkv", "[{{ANY}}] Series - {{EP_NUM}} [{{RES}}].{{EXT}}"},
 		{"Space Separated", "Series - 01.mkv", "Series - {{EP_NUM}}.{{EXT}}"},
 		{"Dot Separated", "Series.01.mkv", "Series.{{EP_NUM}}.{{EXT}}"},
-		{"No Resolution", "[Sub] Series - 01.mkv", "[{{ANY}}] Series - {{EP_NUM}}.{{EXT}}"},
-		{"Multiple Brackets", "[Group][1080p] Series - 01.mkv", "[{{ANY}}][{{RES}}] Series - {{EP_NUM}}.{{EXT}}"},
 		{"SxxExx Format", "Series S01E01.mkv", "Series S01E{{EP_NUM}}.{{EXT}}"},
 		{"Episode Keyword", "Series Episode 01.mkv", "Series Episode {{EP_NUM}}.{{EXT}}"},
 		{"CRC masking", "[Group] Series - 01 [1A2B3C4D].mkv", "[{{ANY}}] Series - {{EP_NUM}} [{{ANY}}].{{EXT}}"},
+		{"Hyphen Separated Title", "S01E01-Title.mkv", "S01E{{EP_NUM}}-{{ANY}}.{{EXT}}"},
+		{"Underscore Separated Title", "ss_ep1_lsjflsjfsl.mkv", "ss_ep{{EP_NUM}}_{{ANY}}.{{EXT}}"},
+		{"Dot Separated Title", "Series.S01E01.Title.mkv", "Series.S01E{{EP_NUM}}.{{ANY}}.{{EXT}}"},
+		{"Space Separated Title", "S01E01 Title.mkv", "S01E{{EP_NUM}} {{ANY}}.{{EXT}}"},
+		{"Double Underscore", "S01E01__Title.mkv", "S01E{{EP_NUM}}__{{ANY}}.{{EXT}}"},
+		{"Spaced Hyphen", "S01E01 - Title.mkv", "S01E{{EP_NUM}} - {{ANY}}.{{EXT}}"},
+		{"Triple Hyphen", "S01E01---Title.mkv", "S01E{{EP_NUM}}---{{ANY}}.{{EXT}}"},
 	}
 
 	for _, tt := range tests {

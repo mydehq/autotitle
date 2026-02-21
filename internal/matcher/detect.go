@@ -9,8 +9,8 @@ import (
 var (
 	reCRC       = regexp.MustCompile(`\[[A-Fa-f0-9]{8}\]`)
 	reRes       = regexp.MustCompile(`(?i)\b(\d{3,4}p|\d{3,4}x\d{3,4})\b`)
-	reSxxExx    = regexp.MustCompile(`(?i)(S\d+E)(\d+)`)
-	rePrefix    = regexp.MustCompile(`( - | Episode | Ep\.? )(\d+)`)
+	reSxxExx    = regexp.MustCompile(`(?i)(S\s*\d+\s*[Ex]\s*)(\d+)`)
+	rePrefix    = regexp.MustCompile(`( - | Episode | Ep\.? | E\s+)(\d+)`)
 	reNumber    = regexp.MustCompile(`\d+`)
 	reBracketed = regexp.MustCompile(`\[([^\]]+)\]`)
 )
@@ -138,31 +138,35 @@ func maskTrailer(pattern string) string {
 		return pattern
 	}
 
-	// Check for common title separators
-	separators := []string{" - ", " — ", " : ", " | "}
-	for _, sep := range separators {
-		if sIdx := strings.Index(trailer, sep); sIdx != -1 {
-			// Found a separator. Check if there's significant content after it
-			// and before any remaining metadata like [{{RES}}] or [{{ANY}}]
-			remaining := trailer[sIdx+len(sep):]
+	// Find the first occurrence of a separator block.
+	// A separator block is a sequence of non-alphanumeric separator symbols
+	// optionally surrounded by whitespace, OR just a sequence of whitespace.
+	reSepBlock := regexp.MustCompile(`([ \t]*[-_.:|—]+[ \t]*|[ \t]+)`)
+	loc := reSepBlock.FindStringIndex(trailer)
 
-			// Find first metadata block [{{ANY}}] or [{{RES}}]
-			metaRe := regexp.MustCompile(`\[\{\{[A-Z_]+\}\}\]`)
-			m := metaRe.FindStringIndex(remaining)
+	if loc != nil {
+		sIdx, eIdx := loc[0], loc[1]
+		separator := trailer[sIdx:eIdx]
 
-			if m == nil {
-				// No metadata, mask the whole remaining part if it's not empty
-				if strings.TrimSpace(remaining) != "" {
-					return pattern[:idx+len("{{EP_NUM}}")] + trailer[:sIdx] + sep + "{{ANY}}"
-				}
-			} else {
-				// Mask only up to the metadata block
-				titlePart := remaining[:m[0]]
-				if strings.TrimSpace(titlePart) != "" {
-					return pattern[:idx+len("{{EP_NUM}}")] + trailer[:sIdx] + sep + "{{ANY}} " + remaining[m[0]:]
-				}
+		// Found a separator. Check if there's significant content after it
+		// and before any remaining metadata like [{{RES}}] or [{{ANY}}]
+		remaining := trailer[eIdx:]
+
+		// Find first metadata block [{{ANY}}] or [{{RES}}]
+		metaRe := regexp.MustCompile(`\[\{\{[A-Z_]+\}\}\]`)
+		m := metaRe.FindStringIndex(remaining)
+
+		if m == nil {
+			// No metadata, mask the whole remaining part if it's not empty
+			if strings.TrimSpace(remaining) != "" {
+				return pattern[:idx+len("{{EP_NUM}}")] + trailer[:sIdx] + separator + "{{ANY}}"
 			}
-			break
+		} else {
+			// Mask only up to the metadata block
+			titlePart := remaining[:m[0]]
+			if strings.TrimSpace(titlePart) != "" {
+				return pattern[:idx+len("{{EP_NUM}}")] + trailer[:sIdx] + separator + "{{ANY}} " + remaining[m[0]:]
+			}
 		}
 	}
 	return pattern
