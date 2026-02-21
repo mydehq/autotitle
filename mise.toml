@@ -50,7 +50,7 @@ run = """
     GOOS=windows GOARCH=amd64 go build -trimpath -ldflags "$LDFLAGS_RELEASE" -o {{env.BIN_DIR}}/{{env.BINARY_NAME}}-windows-amd64.exe ./cmd/autotitle
 """
 
-[tasks.install]
+[tasks.install-bin]
 description = "Install optimized binary to GOPATH/bin"
 run = """
     mise install go
