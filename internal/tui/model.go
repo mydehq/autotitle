@@ -11,6 +11,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/mydehq/autotitle"
+	"github.com/mydehq/autotitle/internal/cli"
 )
 
 type state int
@@ -26,26 +27,23 @@ const (
 )
 
 var (
-	titleStyle = lipgloss.NewStyle().
-			Bold(true).
-			Foreground(lipgloss.Color("86"))
+	titleStyle = cli.StyleCommand
 
-	subTitleStyle = lipgloss.NewStyle().
-			Foreground(lipgloss.Color("240"))
+	subTitleStyle = cli.StyleDim
 
-	infoStyle    = lipgloss.NewStyle().Foreground(lipgloss.Color("86"))
-	successStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("34"))
-	warningStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("192"))
-	errorStyle   = lipgloss.NewStyle().Foreground(lipgloss.Color("204"))
+	infoStyle    = cli.StyleCommand
+	successStyle = cli.StyleHeader
+	warningStyle = cli.StylePattern
+	errorStyle   = cli.StylePath
 
 	actionBarMsgStyle = lipgloss.NewStyle().
-				Foreground(lipgloss.Color("229")).
-				Background(lipgloss.Color("57")).
+				Foreground(lipgloss.AdaptiveColor{Light: "229", Dark: "229"}).
+				Background(lipgloss.AdaptiveColor{Light: "57", Dark: "57"}).
 				Padding(0, 1)
 
 	actionBarKeyStyle = lipgloss.NewStyle().
-				Foreground(lipgloss.Color("57")).
-				Background(lipgloss.Color("229")).
+				Foreground(lipgloss.AdaptiveColor{Light: "57", Dark: "57"}).
+				Background(lipgloss.AdaptiveColor{Light: "229", Dark: "229"}).
 				Padding(0, 1).
 				Bold(true)
 )
@@ -261,12 +259,12 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	}
 
 	switch m.state {
-		case stateConfirmation, stateFinished, stateRenaming:
-			m.table, cmd = m.table.Update(msg)
-			cmds = append(cmds, cmd)
-		case stateInitInput:
-			m.input, cmd = m.input.Update(msg)
-			cmds = append(cmds, cmd)
+	case stateConfirmation, stateFinished, stateRenaming:
+		m.table, cmd = m.table.Update(msg)
+		cmds = append(cmds, cmd)
+	case stateInitInput:
+		m.input, cmd = m.input.Update(msg)
+		cmds = append(cmds, cmd)
 	}
 
 	return m, tea.Batch(cmds...)

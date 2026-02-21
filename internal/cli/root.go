@@ -22,14 +22,6 @@ var (
 	flagForce     bool
 
 	logger *log.Logger
-
-	// Styles
-	StyleHeader  = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("34"))
-	StyleCommand = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("86"))
-	StylePath    = lipgloss.NewStyle().Foreground(lipgloss.Color("63"))
-	StylePattern = lipgloss.NewStyle().Foreground(lipgloss.Color("192"))
-	StyleDim     = lipgloss.NewStyle().Foreground(lipgloss.Color("247"))
-	styleFlag    = lipgloss.NewStyle().Italic(true).Foreground(lipgloss.Color("204")) // Pink
 )
 
 var RootCmd = &cobra.Command{
