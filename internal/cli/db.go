@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"strings"
 
 	"github.com/mydehq/autotitle"
 	"github.com/spf13/cobra"
@@ -39,18 +40,18 @@ var dbListCmd = &cobra.Command{
 }
 
 var dbInfoCmd = &cobra.Command{
-	Use:   "info <provider> <id>",
+	Use:   "info <provider>/<id>",
 	Short: "Show database info",
-	Args:  cobra.ExactArgs(2),
+	Args:  cobra.ExactArgs(1),
 	Run: func(cmd *cobra.Command, args []string) {
-		runDBInfo(cmd.Context(), args[0], args[1])
+		runDBInfo(cmd.Context(), args[0])
 	},
 }
 
 var dbRmCmd = &cobra.Command{
-	Use:   "rm <provider> <id>",
+	Use:   "rm <provider>/<id>",
 	Short: "Remove a database",
-	Args:  cobra.MaximumNArgs(2),
+	Args:  cobra.MaximumNArgs(1),
 	Run: func(cmd *cobra.Command, args []string) {
 		runDBRm(cmd.Context(), args)
 	},
@@ -122,7 +123,14 @@ func runDBList(ctx context.Context) {
 	}
 }
 
-func runDBInfo(ctx context.Context, prov, id string) {
+func runDBInfo(ctx context.Context, target string) {
+	parts := strings.Split(target, "/")
+	if len(parts) != 2 || parts[0] == "" || parts[1] == "" {
+		logger.Error("Invalid format. Use: <provider>/<id> (e.g. mal/269)")
+		os.Exit(1)
+	}
+	prov, id := parts[0], parts[1]
+
 	media, err := autotitle.DBInfo(ctx, prov, id)
 	if err != nil {
 		logger.Error(fmt.Sprintf("Failed to get database info: %v", err))
@@ -154,16 +162,23 @@ func runDBRm(ctx context.Context, args []string) {
 		return
 	}
 
-	if len(args) < 2 {
-		logger.Error("Usage: autotitle db rm <provider> <id>")
+	if len(args) == 0 {
+		logger.Error("Usage: autotitle db rm <provider>/<id>")
 		os.Exit(1)
 	}
 
-	if err := autotitle.DBDelete(ctx, args[0], args[1]); err != nil {
+	parts := strings.Split(args[0], "/")
+	if len(parts) != 2 || parts[0] == "" || parts[1] == "" {
+		logger.Error("Invalid format. Use: <provider>/<id> (e.g. mal/269)")
+		os.Exit(1)
+	}
+	prov, id := parts[0], parts[1]
+
+	if err := autotitle.DBDelete(ctx, prov, id); err != nil {
 		logger.Error(fmt.Sprintf("Failed to delete database: %v", err))
 		os.Exit(1)
 	}
-	logger.Info(StyleHeader.Render("Deleted database"), "provider", args[0], "id", StylePath.Render(args[1]))
+	logger.Info(StyleHeader.Render("Deleted database"), "provider", prov, "id", StylePath.Render(id))
 }
 
 func runDBPath() {
