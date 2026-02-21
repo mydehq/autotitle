@@ -243,6 +243,8 @@ func Rename(ctx context.Context, path string, opts ...Option) ([]types.RenameOpe
 	}
 	if options.Events != nil {
 		r.WithEvents(options.Events)
+	} else if defaultEvents != nil {
+		r.WithEvents(defaultEvents)
 	}
 
 	if options.Offset != nil {
@@ -644,6 +646,9 @@ func Undo(ctx context.Context, path string) error {
 	}
 
 	bm := backup.New(cacheRoot, dirName)
+	if defaultEvents != nil {
+		bm.WithEvents(defaultEvents)
+	}
 	return bm.Restore(ctx, path)
 }
 

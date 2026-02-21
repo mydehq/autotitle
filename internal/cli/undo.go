@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"fmt"
 	"os"
 
 	"github.com/mydehq/autotitle"
@@ -22,8 +23,10 @@ func init() {
 
 func runUndo(cmd *cobra.Command, path string) {
 	if err := autotitle.Undo(cmd.Context(), path); err != nil {
+		fmt.Println()
 		logger.Error("Failed to undo", "error", err)
 		os.Exit(1)
 	}
+	fmt.Println()
 	logger.Info(StyleHeader.Render("Files restored from backup"))
 }

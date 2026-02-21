@@ -169,6 +169,7 @@ func runRename(ctx context.Context, cmd *cobra.Command, path string) {
 	}
 
 	if !flagQuiet {
+		fmt.Println()
 		logger.Info(fmt.Sprintf("Summary: renamed=%s skipped=%s failed=%s",
 			StyleCommand.Render(fmt.Sprint(success)),
 			StylePattern.Render(fmt.Sprint(skipped)),

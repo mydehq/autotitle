@@ -51,6 +51,7 @@ func New(db types.DatabaseRepository, backupConfig types.BackupConfig, formats [
 // WithEvents sets the event handler
 func (r *Renamer) WithEvents(h types.EventHandler) *Renamer {
 	r.Events = h
+	r.BackupManager.WithEvents(h)
 	return r
 }
 

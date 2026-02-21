@@ -23,6 +23,7 @@ const (
 type Manager struct {
 	registryPath string // ~/.cache/autotitle/backup_registry.json
 	dirName      string // Backup dir name (from config)
+	Events       types.EventHandler
 }
 
 // New creates a new BackupManager
@@ -33,6 +34,18 @@ func New(cacheRoot string, dirName string) *Manager {
 	return &Manager{
 		registryPath: filepath.Join(cacheRoot, RegistryFileName),
 		dirName:      dirName,
+	}
+}
+
+// WithEvents sets the event handler
+func (m *Manager) WithEvents(h types.EventHandler) types.BackupManager {
+	m.Events = h
+	return m
+}
+
+func (m *Manager) emit(t types.EventType, msg string) {
+	if m.Events != nil {
+		m.Events(types.Event{Type: t, Message: msg})
 	}
 }
 
@@ -60,6 +73,7 @@ func (m *Manager) Backup(ctx context.Context, dir string, mappings map[string]st
 		if err := copyFile(src, dst); err != nil {
 			return fmt.Errorf("failed to backup file %s: %w", oldName, err)
 		}
+		m.emit(types.EventInfo, fmt.Sprintf("Backed up: %s", oldName))
 	}
 
 	// Write mappings.json
@@ -118,6 +132,7 @@ func (m *Manager) Restore(ctx context.Context, dir string) error {
 				_ = os.Remove(renamedPath)
 			}
 		}
+		m.emit(types.EventSuccess, fmt.Sprintf("Restored: %s → %s", newName, oldName))
 	}
 
 	// Clean up backup after successful restore

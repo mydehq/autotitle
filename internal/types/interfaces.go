@@ -98,6 +98,9 @@ type BackupManager interface {
 	// Clean removes the backup for a specific directory
 	Clean(ctx context.Context, dir string) error
 
+	// WithEvents sets the event handler for progress updates
+	WithEvents(h EventHandler) BackupManager
+
 	// ListAll returns all backup records (global)
 	ListAll(ctx context.Context) ([]BackupRecord, error)
 
