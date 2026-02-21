@@ -46,13 +46,13 @@ func runTag(cmd *cobra.Command, path string) {
 		autotitle.WithEvents(func(e autotitle.Event) {
 			switch e.Type {
 			case autotitle.EventInfo:
-				logger.Info(e.Message)
+				logger.Info(StyleHeader.Render("Tag"), "msg", e.Message)
 			case autotitle.EventSuccess:
-				logger.Info(e.Message)
+				logger.Info(StyleHeader.Render("Tagged"), "msg", e.Message)
 			case autotitle.EventWarning:
-				logger.Warn(e.Message)
+				logger.Warn(StyleHeader.Render("Tag Warning"), "msg", e.Message)
 			case autotitle.EventError:
-				logger.Error(e.Message)
+				logger.Error(StyleHeader.Render("Tag Error"), "msg", e.Message)
 			}
 		}),
 	}

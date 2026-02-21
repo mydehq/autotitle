@@ -26,5 +26,5 @@ func runUndo(cmd *cobra.Command, path string) {
 		logger.Error(fmt.Sprintf("Failed to undo: %v", err))
 		os.Exit(1)
 	}
-	logger.Info("Files restored from backup")
+	logger.Info(StyleHeader.Render("Files restored from backup"))
 }

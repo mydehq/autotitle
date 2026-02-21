@@ -22,6 +22,12 @@ var (
 	flagForce     bool
 
 	logger *log.Logger
+
+	// Styles
+	StyleHeader  = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("86"))
+	StylePath    = lipgloss.NewStyle().Foreground(lipgloss.Color("63"))
+	StylePattern = lipgloss.NewStyle().Foreground(lipgloss.Color("192"))
+	StyleDim     = lipgloss.NewStyle().Foreground(lipgloss.Color("240"))
 )
 
 var RootCmd = &cobra.Command{
@@ -156,6 +162,10 @@ func runRename(ctx context.Context, cmd *cobra.Command, path string) {
 	}
 
 	if !flagQuiet {
-		logger.Info("Summary", "renamed", success, "skipped", skipped, "failed", failed)
+		logger.Info("Summary",
+			"renamed", lipgloss.NewStyle().Foreground(lipgloss.Color("86")).Render(fmt.Sprint(success)),
+			"skipped", lipgloss.NewStyle().Foreground(lipgloss.Color("192")).Render(fmt.Sprint(skipped)),
+			"failed", lipgloss.NewStyle().Foreground(lipgloss.Color("204")).Render(fmt.Sprint(failed)),
+		)
 	}
 }

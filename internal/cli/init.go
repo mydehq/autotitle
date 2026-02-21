@@ -3,6 +3,7 @@ package cli
 import (
 	"fmt"
 	"os"
+	"path/filepath"
 
 	"github.com/mydehq/autotitle"
 	"github.com/spf13/cobra"
@@ -56,5 +57,7 @@ func runInit(cmd *cobra.Command, path string) {
 		logger.Error(fmt.Sprintf("Failed to init config: %v", err))
 		os.Exit(1)
 	}
-	logger.Info("Created config", "path", path+"/_autotitle.yml")
+
+	mapFile := "_autotitle.yml"
+	logger.Info(StyleHeader.Render("Created config"), "path", StylePath.Render(filepath.Join(path, mapFile)))
 }

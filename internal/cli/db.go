@@ -92,9 +92,9 @@ func runDBGen(ctx context.Context, url string) {
 	}
 
 	if generated {
-		logger.Info("Database generated", "url", url)
+		logger.Info(StyleHeader.Render("Database generated"), "url", StylePath.Render(url))
 	} else {
-		logger.Info("Database cached", "url", url)
+		logger.Info(StyleHeader.Render("Database cached"), "url", StylePath.Render(url))
 	}
 }
 
@@ -110,9 +110,15 @@ func runDBList(ctx context.Context) {
 		return
 	}
 
-	logger.Info("Cached databases", "count", len(items))
+	fmt.Printf("%s: %s\n", StyleHeader.Render("Cached databases"), StylePattern.Render(fmt.Sprint(len(items))))
 	for _, item := range items {
-		fmt.Printf("  %s/%s: %s (%d episodes)\n", item.Provider, item.ID, item.Title, item.EpisodeCount)
+		fmt.Printf("  %s %s/%s: %s %s\n",
+			StyleDim.Render("-"),
+			StyleHeader.Render(item.Provider),
+			StylePath.Render(item.ID),
+			item.Title,
+			StyleDim.Render(fmt.Sprintf("(%d episodes)", item.EpisodeCount)),
+		)
 	}
 }
 
@@ -127,12 +133,14 @@ func runDBInfo(ctx context.Context, prov, id string) {
 		os.Exit(1)
 	}
 
-	fmt.Printf("Provider: %s\n", media.Provider)
-	fmt.Printf("ID: %s\n", media.ID)
-	fmt.Printf("Title: %s\n", media.Title)
-	fmt.Printf("Episodes: %d\n", len(media.Episodes))
+	keyStyle := StyleHeader.Width(15)
+
+	fmt.Printf("%s %s\n", keyStyle.Render("Title:"), media.Title)
+	fmt.Printf("%s %d\n", keyStyle.Render("Episodes:"), len(media.Episodes))
+	fmt.Printf("%s %s\n", keyStyle.Render("ID:"), StylePath.Render(media.ID))
+	fmt.Printf("%s %s\n", keyStyle.Render("Provider:"), StylePattern.Render(media.Provider))
 	if media.FillerSource != "" {
-		fmt.Printf("Filler Source: %s\n", media.FillerSource)
+		fmt.Printf("%s %s\n", keyStyle.Render("Filler Source:"), media.FillerSource)
 	}
 }
 
@@ -142,7 +150,7 @@ func runDBRm(ctx context.Context, args []string) {
 			logger.Error(fmt.Sprintf("Failed to delete all databases: %v", err))
 			os.Exit(1)
 		}
-		logger.Info("Deleted all databases")
+		logger.Info(StyleHeader.Render("Deleted all databases"))
 		return
 	}
 
@@ -155,7 +163,7 @@ func runDBRm(ctx context.Context, args []string) {
 		logger.Error(fmt.Sprintf("Failed to delete database: %v", err))
 		os.Exit(1)
 	}
-	logger.Info("Deleted database", "provider", args[0], "id", args[1])
+	logger.Info(StyleHeader.Render("Deleted database"), "provider", args[0], "id", StylePath.Render(args[1]))
 }
 
 func runDBPath() {

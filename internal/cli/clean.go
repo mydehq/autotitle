@@ -31,7 +31,7 @@ func runClean(cmd *cobra.Command, args []string) {
 			logger.Error(fmt.Sprintf("Failed to clean global backups: %v", err))
 			os.Exit(1)
 		}
-		logger.Info("Removed all backups globally")
+		logger.Info(StyleHeader.Render("Removed all backups globally"))
 		return
 	}
 
@@ -44,5 +44,5 @@ func runClean(cmd *cobra.Command, args []string) {
 		logger.Error(fmt.Sprintf("Failed to remove backup for %s: %v", args[0], err))
 		os.Exit(1)
 	}
-	logger.Info("Removed backup", "path", args[0])
+	logger.Info(StyleHeader.Render("Removed backup"), "path", StylePath.Render(args[0]))
 }

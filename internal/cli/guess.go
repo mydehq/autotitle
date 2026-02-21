@@ -49,12 +49,12 @@ func runGuessPattern(cmd *cobra.Command, path string) {
 	}
 
 	if !scanResult.HasMedia {
-		fmt.Printf("No media files found in: %s\n", absPath)
+		fmt.Printf("No media files found in: %s\n", StylePath.Render(absPath))
 		return
 	}
 
-	fmt.Printf("Detected patterns in: %s\n", absPath)
+	fmt.Printf("%s in: %s\n", StyleHeader.Render("Detected patterns"), StylePath.Render(absPath))
 	for _, p := range scanResult.DetectedPatterns {
-		fmt.Printf(" - %s\n", p)
+		fmt.Printf(" %s %s\n", StyleDim.Render("-"), StylePattern.Render(p))
 	}
 }
