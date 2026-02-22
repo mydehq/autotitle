@@ -36,14 +36,15 @@ func showPreviewAndConfirm(cfg *types.Config, theme *huh.Theme) (bool, error) {
 		return false, fmt.Errorf("failed to preview config: %w", err)
 	}
 
-	confirmed := false
+	confirmed := true
 	err = RunForm(huh.NewForm(
 		huh.NewGroup(
 			huh.NewNote().
-				Title("Config preview").
-				Description(string(data)),
+				Title("Configuration Preview").
+				Description(fmt.Sprintf("\n%s\n\n", StyleDim.Render(string(data)))),
+
 			huh.NewConfirm().
-				Title("Write config?").
+				Title("Write configuration?").
 				Value(&confirmed),
 		),
 	).WithTheme(theme).WithKeyMap(AutotitleKeyMap()))

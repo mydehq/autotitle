@@ -42,6 +42,22 @@ func RunInitWizard(ctx context.Context, absPath string, scan *config.ScanResult,
 	var fillerURL string
 	var inputPatterns []string
 	var outputFields []string
+	var showAdvanced bool
+
+	separator := " "
+	offsetStr := "0"
+	paddingStr := "0"
+
+	if flags.HasSeparator {
+		separator = flags.Separator
+	}
+	if flags.HasOffset {
+		offsetStr = strconv.Itoa(flags.Offset)
+	}
+	if flags.HasPadding {
+		paddingStr = strconv.Itoa(flags.Padding)
+	}
+
 	defer autotitle.ClearSearchCache()
 	autotitle.ClearSearchCache()
 
@@ -144,19 +160,59 @@ func RunInitWizard(ctx context.Context, absPath string, scan *config.ScanResult,
 			step++
 
 		case 5:
-			// Optional refinement fields
-			paddingStr := "0"
-			offsetStr := "0"
-			separator := " "
-
-			if flags.HasSeparator {
-				separator = flags.Separator
-			}
+			// Episode offset
 			if flags.HasOffset {
-				offsetStr = strconv.Itoa(flags.Offset)
+				step++
+				continue
 			}
-			if flags.HasPadding {
-				paddingStr = strconv.Itoa(flags.Padding)
+
+			err := RunForm(huh.NewForm(
+				huh.NewGroup(
+					huh.NewInput().
+						Title("Episode offset").
+						Description("\nShift episode numbers (DB = Local + Offset).\nUse 12 to map Local E01 to Database E13.\n").
+						Value(&offsetStr).
+						Validate(validateInt),
+				),
+			).WithTheme(theme).WithKeyMap(AutotitleKeyMap()))
+			if err != nil {
+				if errors.Is(HandleAbort(err), ErrUserBack) {
+					step--
+					continue
+				}
+				return err
+			}
+			step++
+
+		case 6:
+			// Ask for advanced settings
+			if flags.HasSeparator && flags.HasPadding {
+				step++
+				continue
+			}
+
+			err := RunForm(huh.NewForm(
+				huh.NewGroup(
+					huh.NewConfirm().
+						Title("Advanced Settings").
+						Description("Do you want to configure additional settings (Separator, Episode Padding..)?").
+						Value(&showAdvanced),
+				),
+			).WithTheme(theme).WithKeyMap(AutotitleKeyMap()))
+			if err != nil {
+				if errors.Is(HandleAbort(err), ErrUserBack) {
+					step--
+					continue
+				}
+				return err
+			}
+			step++
+
+		case 7:
+			// Optional refinement fields
+			if !showAdvanced {
+				step++
+				continue
 			}
 
 			var refinementFields []huh.Field
@@ -167,15 +223,6 @@ func RunInitWizard(ctx context.Context, absPath string, scan *config.ScanResult,
 						Placeholder(" ").
 						Description("\nCharacter(s) between output fields").
 						Value(&separator),
-				)
-			}
-			if !flags.HasOffset {
-				refinementFields = append(refinementFields,
-					huh.NewInput().
-						Title("Episode offset").
-						Description("\nShift episode numbers (DB = Local + Offset).\nUse 12 to map Local E01 to Database E13.\n").
-						Value(&offsetStr).
-						Validate(validateInt),
 				)
 			}
 			if !flags.HasPadding {
@@ -200,7 +247,9 @@ func RunInitWizard(ctx context.Context, absPath string, scan *config.ScanResult,
 					return err
 				}
 			}
+			step++
 
+		case 8:
 			offset, _ := strconv.Atoi(offsetStr)
 			padding, _ := strconv.Atoi(paddingStr)
 
@@ -232,52 +281,56 @@ func RunInitWizard(ctx context.Context, absPath string, scan *config.ScanResult,
 			if err := config.SaveToDir(absPath, cfg); err != nil {
 				return fmt.Errorf("failed to save config: %w", err)
 			}
+			step++
+
+		case 9:
+			// Final success and DB generation offer
 			mapPath := filepath.Join(absPath, config.GetDefaults().MapFile)
-			if logger != nil {
-				logger.Info(fmt.Sprintf("%s: %s", StyleHeader.Render("Created config"), StylePath.Render(mapPath)))
-			}
 
-			// ─Offer DB generation
-			if flags.DryRun {
-				if logger != nil {
-					logger.Info(StyleDim.Render("[DRY RUN] Skipping DB generation prompt"))
-				}
-				return nil // done!
-			}
-
-			fetchDB := false
-			err = RunForm(huh.NewForm(
+			// Show success note and DB fetch prompt together for a cleaner finish
+			fetchDB := true
+			err := RunForm(huh.NewForm(
 				huh.NewGroup(
+					huh.NewNote().
+						Title("Success!").
+						Description(fmt.Sprintf("\n%s\n%s\n",
+							StyleHeader.Render("Configuration saved to:"),
+							StylePath.Render(mapPath),
+						)),
 					huh.NewConfirm().
 						Title("Fetch database now?").
-						Description("\nDownload episode data from the provider").
+						Description("Download episode data from the provider to enable renaming.").
 						Value(&fetchDB),
 				),
 			).WithTheme(theme).WithKeyMap(AutotitleKeyMap()))
 
-			// If user presses BACK here, theoretically they can't undo the config save,
-			// so we just cancel the db fetch.
-			if err != nil && !errors.Is(HandleAbort(err), ErrUserBack) {
-				return HandleAbort(err) // propagate real errors
+			if err != nil {
+				return HandleAbort(err) // No going back from the final success screen
 			}
 
-			if fetchDB {
-				opts := []autotitle.Option{}
-				if fillerURL != "" {
-					opts = append(opts, autotitle.WithFiller(fillerURL))
-				}
-				_, err := autotitle.DBGen(ctx, selectedURL, opts...)
-				if err != nil {
-					if logger != nil {
-						logger.Error("Failed to generate database", "error", err)
-					}
-				} else {
-					if logger != nil {
-						logger.Info(fmt.Sprintf("%s: %s", StyleHeader.Render("Database generated"), StylePath.Render(selectedURL)))
-					}
-				}
+			if !fetchDB {
+				return nil
 			}
 
+			// Perform DB Generation
+			if flags.DryRun {
+				if logger != nil {
+					logger.Info(StyleDim.Render("[DRY RUN] Skipping DB generation"))
+				}
+				return nil // done!
+			}
+
+			if logger != nil {
+				logger.Info(StyleHeader.Render("Fetching database..."))
+			}
+			_, err = autotitle.DBGen(ctx, selectedURL, autotitle.WithFiller(fillerURL), autotitle.WithForce())
+			if err != nil {
+				return fmt.Errorf("failed to generate database: %w", err)
+			}
+
+			if logger != nil {
+				logger.Info(StyleHeader.Render("Database generated successfully"))
+			}
 			return nil
 		}
 	}
