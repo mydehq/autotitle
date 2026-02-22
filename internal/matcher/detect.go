@@ -9,8 +9,8 @@ import (
 var (
 	reCRC       = regexp.MustCompile(`\[[A-Fa-f0-9]{8}\]`)
 	reRes       = regexp.MustCompile(`(?i)\b(\d{3,4}p|\d{3,4}x\d{3,4})\b`)
-	reSxxExx    = regexp.MustCompile(`(?i)(S\s*\d+\s*[Ex]\s*)(\d+)`)
-	rePrefix    = regexp.MustCompile(`( - | Episode | Ep\.? | E\s+)(\d+)`)
+	reSxxExx    = regexp.MustCompile(`(?i)(\bS\s*\d+\s*[Ex]\s*)(\d+)`)
+	rePrefix    = regexp.MustCompile(`(?i)(\bEpisode\s*|\bEp\.?\s*|\bE\s*| - )(\d+)`)
 	reNumber    = regexp.MustCompile(`\d+`)
 	reBracketed = regexp.MustCompile(`\[([^\]]+)\]`)
 )
@@ -67,21 +67,22 @@ func GuessPattern(filename string) string {
 		tagOffset = start + len("[{{ANY}}]")
 	}
 
-	// SxxExx format
-	if startEnd := reSxxExx.FindStringSubmatchIndex(pattern); startEnd != nil {
-		prefixEnd := startEnd[3]
-		numEnd := startEnd[5]
-		pattern = pattern[:prefixEnd] + "{{EP_NUM}}" + pattern[numEnd:]
-		goto Finalize
+	matched := false
+
+	// SxxExx format - replace all occurrences
+	if reSxxExx.MatchString(pattern) {
+		pattern = reSxxExx.ReplaceAllString(pattern, "${1}{{EP_NUM}}")
+		matched = true
 	}
 
-	// Prefix patterns like " - 01" or " Episode 01"
-	{
-		if startEnd := rePrefix.FindStringSubmatchIndex(pattern); startEnd != nil {
-			numStart, numEnd := startEnd[4], startEnd[5]
-			pattern = pattern[:numStart] + "{{EP_NUM}}" + pattern[numEnd:]
-			goto Finalize
-		}
+	// Prefix patterns like " - 01" or " Episode 01" - replace all occurrences
+	if rePrefix.MatchString(pattern) {
+		pattern = rePrefix.ReplaceAllString(pattern, "${1}{{EP_NUM}}")
+		matched = true
+	}
+
+	if matched {
+		goto Finalize
 	}
 
 	// Find last number, filtering out version/codec/year numbers
@@ -128,7 +129,9 @@ Finalize:
 }
 
 func maskTrailer(pattern string) string {
-	idx := strings.Index(pattern, "{{EP_NUM}}")
+	// Find the LAST episode number placeholder. This handles files with redundant numbers
+	// (e.g. E{{EP_NUM}} - Episode {{EP_NUM}} - Title) correctly.
+	idx := strings.LastIndex(pattern, "{{EP_NUM}}")
 	if idx == -1 {
 		return pattern
 	}

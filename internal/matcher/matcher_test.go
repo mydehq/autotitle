@@ -24,6 +24,7 @@ func TestGuessPattern(t *testing.T) {
 		{"Double Underscore", "S01E01__Title.mkv", "S01E{{EP_NUM}}__{{ANY}}.{{EXT}}"},
 		{"Spaced Hyphen", "S01E01 - Title.mkv", "S01E{{EP_NUM}} - {{ANY}}.{{EXT}}"},
 		{"Triple Hyphen", "S01E01---Title.mkv", "S01E{{EP_NUM}}---{{ANY}}.{{EXT}}"},
+		{"Redundant Episode Numbers", "E01 - Episode 1.mkv", "E{{EP_NUM}} - Episode {{EP_NUM}}.{{EXT}}"},
 	}
 
 	for _, tt := range tests {
