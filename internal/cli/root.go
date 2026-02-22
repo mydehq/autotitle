@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/charmbracelet/lipgloss"
 	"github.com/charmbracelet/log"
 	"github.com/mydehq/autotitle"
 	"github.com/mydehq/autotitle/internal/version"
@@ -68,15 +67,16 @@ func init() {
 	configureStyles()
 
 	autotitle.SetDefaultEventHandler(func(e autotitle.Event) {
+		msg := colorizeEvent(e.Message)
 		switch e.Type {
 		case autotitle.EventSuccess:
-			logger.Info(e.Message)
+			logger.Info(msg)
 		case autotitle.EventWarning:
-			logger.Warn(e.Message)
+			logger.Warn(msg)
 		case autotitle.EventError:
-			logger.Error(e.Message)
+			logger.Error(msg)
 		default:
-			logger.Debug(e.Message)
+			logger.Debug(msg)
 		}
 	})
 
@@ -84,32 +84,6 @@ func init() {
 
 	// Pre-register version flag with -v shorthand.
 	RootCmd.Flags().BoolP("version", "v", false, "Print version information")
-}
-
-func configureStyles() {
-	styles := log.DefaultStyles()
-
-	styles.Levels[log.DebugLevel] = lipgloss.NewStyle().
-		SetString("DEBUG").
-		Bold(true).
-		Foreground(lipgloss.Color("63"))
-
-	styles.Levels[log.InfoLevel] = lipgloss.NewStyle().
-		SetString("INFO ").
-		Bold(true).
-		Foreground(lipgloss.Color("86"))
-
-	styles.Levels[log.WarnLevel] = lipgloss.NewStyle().
-		SetString("WARN ").
-		Bold(true).
-		Foreground(lipgloss.Color("192"))
-
-	styles.Levels[log.ErrorLevel] = lipgloss.NewStyle().
-		SetString("ERROR").
-		Bold(true).
-		Foreground(lipgloss.Color("204"))
-
-	logger.SetStyles(styles)
 }
 
 func setupLogger() {
