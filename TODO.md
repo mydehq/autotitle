@@ -3,3 +3,6 @@
 
 - [x] The search(`WithProvider(str)`) make it list/array instead of string. so we can query multiple providers.
 - [x] Thse searchStream should have this too
+
+- [ ] Add episode start adjustment concept to filler too
+- [ ] For fillers, implement search function. like done in providers

@@ -60,6 +60,11 @@ func (p *MALProvider) Name() string {
 	return "mal"
 }
 
+// Website returns the provider's website URL
+func (p *MALProvider) Website() string {
+	return "https://myanimelist.net"
+}
+
 // Configure updates provider settings
 func (p *MALProvider) Configure(cfg *types.APIConfig) {
 	if cfg == nil {
@@ -76,6 +81,11 @@ func (p *MALProvider) Configure(cfg *types.APIConfig) {
 // Type returns the media type this provider handles
 func (p *MALProvider) Type() types.MediaType {
 	return types.MediaTypeAnime
+}
+
+// SupportedURLs returns the URL patterns this provider handles
+func (p *MALProvider) SupportedURLs() []string {
+	return malURLPatterns
 }
 
 // MatchesURL returns true if this provider can handle the given URL

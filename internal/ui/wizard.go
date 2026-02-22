@@ -39,6 +39,7 @@ func RunInitWizard(ctx context.Context, absPath string, scan *config.ScanResult,
 
 	searchQuery := filepath.Base(absPath)
 	var selectedURL string
+	var fillerURL string
 	var inputPatterns []string
 	var outputFields []string
 	defer autotitle.ClearSearchCache()
@@ -97,6 +98,26 @@ func RunInitWizard(ctx context.Context, absPath string, scan *config.ScanResult,
 			step++
 
 		case 2:
+			// Filler URL selection
+			if flags.HasFiller {
+				fillerURL = flags.FillerURL
+				step++
+				continue
+			}
+
+			derived := filler.DeriveURLFromProvider(selectedURL)
+			var err error
+			fillerURL, err = promptFillerURL(theme, derived)
+			if err != nil {
+				if errors.Is(HandleAbort(err), ErrUserBack) {
+					step--
+					continue
+				}
+				return err
+			}
+			step++
+
+		case 3:
 			// Pattern selection
 			var err error
 			inputPatterns, err = selectInputPatterns(scan.DetectedPatterns, theme)
@@ -109,7 +130,7 @@ func RunInitWizard(ctx context.Context, absPath string, scan *config.ScanResult,
 			}
 			step++
 
-		case 3:
+		case 4:
 			// Output fields
 			var err error
 			outputFields, err = selectOutputFields(theme)
@@ -122,16 +143,12 @@ func RunInitWizard(ctx context.Context, absPath string, scan *config.ScanResult,
 			}
 			step++
 
-		case 4:
+		case 5:
 			// Optional refinement fields
 			paddingStr := "0"
 			offsetStr := "0"
 			separator := " "
-			fillerURL := filler.DeriveURLFromProvider(selectedURL)
 
-			if flags.HasFiller {
-				fillerURL = flags.FillerURL
-			}
 			if flags.HasSeparator {
 				separator = flags.Separator
 			}
@@ -143,14 +160,6 @@ func RunInitWizard(ctx context.Context, absPath string, scan *config.ScanResult,
 			}
 
 			var refinementFields []huh.Field
-			if !flags.HasFiller {
-				refinementFields = append(refinementFields,
-					huh.NewInput().
-						Title("Filler URL").
-						Description("\nOptional. Clear to skip.").
-						Value(&fillerURL),
-				)
-			}
 			if !flags.HasSeparator {
 				refinementFields = append(refinementFields,
 					huh.NewInput().

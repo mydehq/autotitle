@@ -758,12 +758,16 @@ func Version() string {
 
 // Provider registry functions
 var (
-	GetProviderForURL     = provider.GetProviderForURL
-	GetFillerSourceForURL = provider.GetFillerSourceForURL
-	GetProvider           = provider.GetProvider
-	ListProviders         = provider.ListProviders
-	ListFillerSources     = provider.ListFillerSources
+	GetProviderForURL       = provider.GetProviderForURL
+	GetFillerSourceForURL   = provider.GetFillerSourceForURL
+	GetProvider             = provider.GetProvider
+	ListProviders           = provider.ListProviders
+	ListFillerSources       = provider.ListFillerSources
+	ListFillerSourceDetails = provider.ListFillerSourceDetails
 )
+
+// FillerSourceInfo holds metadata about a registered filler source
+type FillerSourceInfo = provider.FillerSourceInfo
 
 // Pattern utilities
 var (

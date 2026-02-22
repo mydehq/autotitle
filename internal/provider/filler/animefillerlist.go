@@ -42,6 +42,16 @@ func (s *AnimeFillerListSource) Name() string {
 	return "animefillerlist"
 }
 
+// Website returns the filler source's website URL
+func (s *AnimeFillerListSource) Website() string {
+	return "https://animefillerlist.com"
+}
+
+// SupportedURLs returns the URL patterns this source handles
+func (s *AnimeFillerListSource) SupportedURLs() []string {
+	return aflURLPatterns
+}
+
 // MatchesURL returns true if this source can handle the given URL
 func (s *AnimeFillerListSource) MatchesURL(url string) bool {
 	for _, pattern := range aflURLPatterns {

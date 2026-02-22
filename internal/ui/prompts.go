@@ -7,6 +7,7 @@ import (
 
 	"github.com/charmbracelet/huh"
 	"github.com/mydehq/autotitle/internal/matcher"
+	"github.com/mydehq/autotitle/internal/provider"
 )
 
 // selectInputPatterns implements the pattern selection step with adaptive widgets.
@@ -332,6 +333,45 @@ func promptManualURL(theme *huh.Theme) (string, error) {
 					s = strings.TrimSpace(s)
 					if s == "" {
 						return fmt.Errorf("URL is required")
+					}
+					if !strings.HasPrefix(s, "http://") && !strings.HasPrefix(s, "https://") {
+						return fmt.Errorf("URL must start with http:// or https://")
+					}
+					return nil
+				}),
+		),
+	).WithTheme(theme).WithKeyMap(AutotitleKeyMap()))
+	if err != nil {
+		return "", err
+	}
+	return strings.TrimSpace(url), nil
+}
+
+// promptFillerURL prompts for the filler list URL, pre-filling a derived one.
+func promptFillerURL(theme *huh.Theme, derived string) (string, error) {
+	// Build legend dynamically from registered filler sources
+	sources := provider.ListFillerSourceDetails()
+	var lines []string
+	for _, s := range sources {
+		lines = append(lines, fmt.Sprintf("• %s - %s", s.Name, s.Website))
+	}
+	legend := strings.Join(lines, "\n")
+
+	url := ""
+	err := RunForm(huh.NewForm(
+		huh.NewGroup(
+			huh.NewNote().
+				Title("Supported Filler Sites").
+				Description("\n"+legend),
+			huh.NewInput().
+				Title("Filler URL").
+				Description("\nIf this series has fillers, add filler list URL here.\nLeave empty to skip.\n").
+				Placeholder(derived).
+				Value(&url).
+				Validate(func(s string) error {
+					s = strings.TrimSpace(s)
+					if s == "" {
+						return nil // Optional
 					}
 					if !strings.HasPrefix(s, "http://") && !strings.HasPrefix(s, "https://") {
 						return fmt.Errorf("URL must start with http:// or https://")
