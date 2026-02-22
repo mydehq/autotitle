@@ -89,9 +89,9 @@ func (s *AnimeFillerListSource) FetchFillers(ctx context.Context, slug string) (
 	// Add User-Agent to avoid blocking
 	req.Header.Set("User-Agent", "Mozilla/5.0 (compatible; Autotitle/2.0; +https://github.com/mydehq/autotitle)")
 
-	resp, err := s.client.Do(req)
+	resp, err := provider.DoWithRetry(ctx, s.client, req, "AnimeFillerList", nil)
 	if err != nil {
-		return nil, fmt.Errorf("failed to fetch filler list: %w", err)
+		return nil, err
 	}
 	defer func() { _ = resp.Body.Close() }()
 
