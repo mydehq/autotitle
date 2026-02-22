@@ -11,6 +11,7 @@ import (
 	"path/filepath"
 	"slices"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/mydehq/autotitle/internal/backup"
@@ -488,9 +489,11 @@ func DBGen(ctx context.Context, url string, opts ...Option) (bool, error) {
 
 	// Check if exists
 	if !options.Force && db.Exists(prov.Name(), id) {
+
 		// Load existing data to check expiration
 		existing, err := db.Load(ctx, prov.Name(), id)
 		if err == nil && existing != nil {
+
 			// If finished airing, no new episodes will come
 			if existing.Status == "Finished Airing" {
 				return false, nil // Skip
@@ -541,49 +544,105 @@ func DBGen(ctx context.Context, url string, opts ...Option) (bool, error) {
 	return true, nil
 }
 
-// Search queries the configured providers for media matching the query.
+// Search queries the configured providers for media matching the query in parallel.
 // If WithProvider is used, it only queries that specific provider.
 func Search(ctx context.Context, query string, opts ...Option) ([]types.SearchResult, error) {
+	ch := SearchStream(ctx, query, opts...)
+	var results []types.SearchResult
+	for r := range ch {
+		results = append(results, r)
+	}
+	return results, nil
+}
+
+var (
+	searchCache   = make(map[string][]types.SearchResult)
+	searchCacheMu sync.RWMutex
+)
+
+// SearchStream queries providers in parallel and streams results as they arrive.
+// Results are cached in memory. The returned channel is closed when all providers have responded.
+func SearchStream(ctx context.Context, query string, opts ...Option) <-chan types.SearchResult {
 	options := &Options{}
 	for _, opt := range opts {
 		opt(options)
 	}
 
-	// Load global config to configure provider
-	globalCfg, _ := config.LoadGlobal()
-	var results []types.SearchResult
+	ch := make(chan types.SearchResult, 32)
 
+	// Check cache
+	searchCacheMu.RLock()
+	if cached, ok := searchCache[query]; ok && options.Provider == "" {
+		searchCacheMu.RUnlock()
+		go func() {
+			for _, r := range cached {
+				ch <- r
+			}
+			close(ch)
+		}()
+		return ch
+	}
+	searchCacheMu.RUnlock()
+
+	globalCfg, _ := config.LoadGlobal()
+
+	// Determine which providers to query
+	var names []string
 	if options.Provider != "" {
-		prov, err := provider.GetProvider(options.Provider)
+		names = []string{options.Provider}
+	} else {
+		names = provider.ListProviders()
+	}
+
+	var results []types.SearchResult
+	var resultsMu sync.Mutex
+
+	var wg sync.WaitGroup
+	for _, name := range names {
+		prov, err := provider.GetProvider(name)
 		if err != nil {
-			return nil, err
+			continue
 		}
 		if globalCfg != nil {
 			prov.Configure(&globalCfg.API)
 		}
-		res, err := prov.Search(ctx, query)
-		if err != nil {
-			return nil, err
-		}
-		results = append(results, res...)
-	} else {
-		for _, name := range provider.ListProviders() {
-			prov, err := provider.GetProvider(name)
+		wg.Add(1)
+		go func(p types.Provider) {
+			defer wg.Done()
+			res, err := p.Search(ctx, query)
 			if err != nil {
-				continue
+				return
 			}
-			if globalCfg != nil {
-				prov.Configure(&globalCfg.API)
+			for _, r := range res {
+				resultsMu.Lock()
+				results = append(results, r)
+				resultsMu.Unlock()
+				select {
+				case ch <- r:
+				case <-ctx.Done():
+					return
+				}
 			}
-			res, err := prov.Search(ctx, query)
-			if err != nil {
-				continue
-			}
-			results = append(results, res...)
-		}
+		}(prov)
 	}
 
-	return results, nil
+	go func() {
+		wg.Wait()
+		if options.Provider == "" {
+			searchCacheMu.Lock()
+			searchCache[query] = results
+			searchCacheMu.Unlock()
+		}
+		close(ch)
+	}()
+	return ch
+}
+
+// ClearSearchCache clears the volatile search result cache.
+func ClearSearchCache() {
+	searchCacheMu.Lock()
+	searchCache = make(map[string][]types.SearchResult)
+	searchCacheMu.Unlock()
 }
 
 // DBList lists all cached databases

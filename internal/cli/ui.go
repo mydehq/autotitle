@@ -10,7 +10,6 @@ import (
 	"strings"
 
 	"github.com/charmbracelet/huh"
-	"github.com/charmbracelet/huh/spinner"
 	"github.com/mydehq/autotitle"
 	"github.com/mydehq/autotitle/internal/config"
 	"github.com/mydehq/autotitle/internal/matcher"
@@ -45,6 +44,8 @@ func runInitWizard(ctx context.Context, cmd *cobra.Command, absPath string, scan
 	var selectedURL string
 	var inputPatterns []string
 	var outputFields []string
+	defer autotitle.ClearSearchCache()
+	autotitle.ClearSearchCache()
 
 	for {
 		ClearAndPrintBanner()
@@ -72,153 +73,29 @@ func runInitWizard(ctx context.Context, cmd *cobra.Command, absPath string, scan
 			step++
 
 		case 1:
-			// Search all providers
-			for {
-				results, searchErr := searchWithSpinner(ctx, searchQuery)
-
-				if searchErr != nil {
-					// Show error and offer retry/manual
-					choice := ""
-					err := RunForm(huh.NewForm(
-						huh.NewGroup(
-							huh.NewNote().
-								Title("Search failed").
-								Description(fmt.Sprintf("Error: %s", searchErr.Error())),
-							huh.NewSelect[string]().
-								Title("What would you like to do?").
-								Options(
-									huh.NewOption("Search again", "retry"),
-									huh.NewOption("Enter URL manually", "manual"),
-									huh.NewOption("Go back", "back"),
-								).
-								Value(&choice),
-						),
-					).WithTheme(theme).WithKeyMap(autotitleKeyMap()))
-					if err != nil {
-						if errors.Is(handleAbort(err), ErrUserBack) {
-							step--
-							break
-						}
-						return err
-					}
-
-					if choice == "back" {
-						step--
-						break
-					}
-					if choice == "manual" {
-						var err error
-						selectedURL, err = promptManualURL(theme)
-						if err != nil {
-							if errors.Is(handleAbort(err), ErrUserBack) {
-								continue
-							}
-							return err
-						}
-						step++
-						break
-					}
-
-					// retry: edit query and loop
-					err = RunForm(huh.NewForm(
-						huh.NewGroup(
-							huh.NewInput().
-								Title("Search query").
-								Value(&searchQuery),
-						),
-					).WithTheme(theme).WithKeyMap(autotitleKeyMap()))
-					if err != nil {
-						if errors.Is(handleAbort(err), ErrUserBack) {
-							continue
-						}
-						return err
-					}
+			// Live streaming search across all providers
+			url, err := runStreamingSearch(ctx, searchQuery)
+			if err != nil {
+				if errors.Is(handleAbort(err), ErrUserBack) {
+					step--
 					continue
 				}
-
-				if len(results) == 0 {
-					choice := ""
-					err := RunForm(huh.NewForm(
-						huh.NewGroup(
-							huh.NewNote().
-								Title("No results").
-								Description(fmt.Sprintf("No results found for %q", searchQuery)),
-							huh.NewSelect[string]().
-								Title("What would you like to do?").
-								Options(
-									huh.NewOption("Search again", "retry"),
-									huh.NewOption("Enter URL manually", "manual"),
-									huh.NewOption("Go back", "back"),
-								).
-								Value(&choice),
-						),
-					).WithTheme(theme).WithKeyMap(autotitleKeyMap()))
-					if err != nil {
-						if errors.Is(handleAbort(err), ErrUserBack) {
-							step--
-							break
-						}
-						return err
-					}
-
-					if choice == "back" {
-						step--
-						break
-					}
-					if choice == "manual" {
-						var err error
-						selectedURL, err = promptManualURL(theme)
-						if err != nil {
-							if errors.Is(handleAbort(err), ErrUserBack) {
-								continue
-							}
-							return err
-						}
-						step++
-						break
-					}
-					// retry: edit query
-					err = RunForm(huh.NewForm(
-						huh.NewGroup(
-							huh.NewInput().
-								Title("Search query").
-								Value(&searchQuery),
-						),
-					).WithTheme(theme).WithKeyMap(autotitleKeyMap()))
-					if err != nil {
-						if errors.Is(handleAbort(err), ErrUserBack) {
-							continue
-						}
-						return err
-					}
-					continue
-				}
-
-				// Show results for selection
-				opts := buildProviderOptions(results)
-				sel := huh.NewSelect[string]().
-					Title("Select your series").
-					Description(fmt.Sprintf("Found %d results", len(results))).
-					Options(opts...).
-					Value(&selectedURL).
-					Filtering(true)
-				if len(results) > 10 {
-					sel = sel.Height(15)
-				}
-				err := RunForm(huh.NewForm(
-					huh.NewGroup(sel),
-				).WithTheme(theme).WithKeyMap(autotitleKeyMap()))
-				if err != nil {
-					if errors.Is(handleAbort(err), ErrUserBack) {
-						step--
-						break
-					}
-					return err
-				}
-
-				step++
-				break
+				return err
 			}
+			if url == "" {
+				// No results or user chose manual entry
+				var manualErr error
+				selectedURL, manualErr = promptManualURL(theme)
+				if manualErr != nil {
+					if errors.Is(handleAbort(manualErr), ErrUserBack) {
+						continue
+					}
+					return manualErr
+				}
+			} else {
+				selectedURL = url
+			}
+			step++
 
 		case 2:
 			// Pattern selection
@@ -410,43 +287,6 @@ func runInitWizard(ctx context.Context, cmd *cobra.Command, absPath string, scan
 	}
 }
 
-// searchWithSpinner runs autotitle.Search across all providers with a spinner.
-func searchWithSpinner(ctx context.Context, query string) ([]types.SearchResult, error) {
-	var results []types.SearchResult
-	var searchErr error
-
-	err := spinner.New().
-		Title(fmt.Sprintf("%s %s", StyleDim.Render("Searching for"), StyleCommand.Render(query))).
-		Action(func() {
-			results, searchErr = autotitle.Search(ctx, query)
-		}).
-		Run()
-
-	if err != nil {
-		return nil, fmt.Errorf("spinner failed: %w", err)
-	}
-	if searchErr != nil {
-		return nil, searchErr
-	}
-
-	fmt.Printf("  %s %s\n\n", StyleDim.Render("Found"), StyleCommand.Render(fmt.Sprintf("%d results", len(results))))
-	return results, nil
-}
-
-// buildProviderOptions maps search results to huh.Option with formatted labels.
-func buildProviderOptions(results []types.SearchResult) []huh.Option[string] {
-	opts := make([]huh.Option[string], len(results))
-	for i, r := range results {
-		label := r.Title
-		if r.Year > 0 {
-			label += fmt.Sprintf(" (%d)", r.Year)
-		}
-		label += " " + StyleDim.Render("["+strings.ToUpper(r.Provider)+"]")
-		opts[i] = huh.NewOption(label, r.URL)
-	}
-	return opts
-}
-
 // selectInputPatterns implements the pattern selection step with adaptive widgets.
 func selectInputPatterns(detected []string, theme *huh.Theme) ([]string, error) {
 	switch len(detected) {
@@ -488,7 +328,7 @@ func selectInputPatterns(detected []string, theme *huh.Theme) ([]string, error) 
 			err := RunForm(huh.NewForm(
 				huh.NewGroup(
 					huh.NewSelect[string]().
-						Title("Input pattern detected").
+						Title("Input pattern detected\n").
 						Options(
 							huh.NewOption(detected[0], detected[0]),
 							huh.NewOption("Add custom pattern...", "__custom__"),
@@ -536,8 +376,8 @@ func selectInputPatterns(detected []string, theme *huh.Theme) ([]string, error) 
 			err = RunForm(huh.NewForm(
 				huh.NewGroup(
 					huh.NewMultiSelect[string]().
-						Title("Input patterns detected").
-						Description("Uncheck patterns you don't want").
+						Title("Input patterns detected\n").
+						Description("Uncheck patterns you don't want\n").
 						Options(multiOpts...).
 						Value(&selected),
 				),

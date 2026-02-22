@@ -30,8 +30,8 @@ var (
 		Light: lipgloss.CompleteColor{TrueColor: "#5f8700", ANSI256: "64", ANSI: "10"},
 	}
 	colorDim = lipgloss.CompleteAdaptiveColor{
-		Dark:  lipgloss.CompleteColor{TrueColor: "#9e9e9e", ANSI256: "247", ANSI: "8"},
-		Light: lipgloss.CompleteColor{TrueColor: "#444444", ANSI256: "238", ANSI: "0"},
+		Dark:  lipgloss.CompleteColor{TrueColor: "#bdbdbd", ANSI256: "250", ANSI: "8"},
+		Light: lipgloss.CompleteColor{TrueColor: "#626262", ANSI256: "241", ANSI: "0"},
 	}
 	colorFlag = lipgloss.CompleteAdaptiveColor{
 		Dark:  lipgloss.CompleteColor{TrueColor: "#ff5faf", ANSI256: "204", ANSI: "13"},
@@ -82,7 +82,7 @@ func configureStyles() {
 	logger.SetStyles(styles)
 }
 
-// autotitleTheme returns a custom huh theme using the CLI's adaptive color tokens.
+// autotitleTheme returns the Catppuccin theme for huh forms.
 func autotitleTheme() *huh.Theme {
 	return huh.ThemeCatppuccin()
 }
@@ -90,11 +90,11 @@ func autotitleTheme() *huh.Theme {
 func autotitleKeyMap() *huh.KeyMap {
 	km := huh.NewDefaultKeyMap()
 
-	// 1. Map both to Quit; we will distinguish them via a bubbletea filter
+	// Map both to Quit; we will distinguish them via a bubbletea filter
 	km.Quit.SetKeys("esc", "ctrl+c")
 	km.Quit.SetHelp("ctrl+c", "quit")
 
-	// 2. Append navigation help to the primary actions
+	// Append navigation help to the primary actions
 	km.Select.Submit.SetHelp("enter", "choose • esc: back • ctrl+c: quit")
 	km.MultiSelect.Submit.SetHelp("enter", "confirm • esc: back • ctrl+c: quit")
 	km.Input.Next.SetHelp("enter", "next • esc: back • ctrl+c: quit")
