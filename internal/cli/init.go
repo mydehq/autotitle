@@ -40,7 +40,7 @@ func init() {
 	initCmd.Flags().StringVarP(&flagInitURL, "url", "u", "", "Provider URL (MAL, TMDB, etc)")
 	initCmd.Flags().StringVarP(&flagInitFillerURL, "filler", "F", "", "Filler list URL")
 	initCmd.Flags().BoolVarP(&flagInitForce, "force", "f", false, "Overwrite existing config")
-	initCmd.Flags().IntVarP(&flagInitOffset, "offset", "o", 0, "Episode number offset")
+	initCmd.Flags().IntVarP(&flagInitOffset, "offset", "o", 0, "Shift episode numbers (e.g. 12 to map Ep 1 to 13)")
 	initCmd.Flags().StringVarP(&flagInitSeparator, "separator", "S", " ", "Output separator")
 	initCmd.Flags().IntVarP(&flagInitPadding, "padding", "p", 0, "Episode number padding (e.g. 2 for 01)")
 }

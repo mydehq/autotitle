@@ -363,10 +363,10 @@ func promptFillerURL(theme *huh.Theme, derived string) (string, error) {
 			huh.NewNote().
 				Title("Supported Filler Sites").
 				Description("\n"+legend),
+
 			huh.NewInput().
 				Title("Filler URL").
 				Description("\nIf this series has fillers, add filler list URL here.\nLeave empty to skip.\n").
-				Placeholder(derived).
 				Value(&url).
 				Validate(func(s string) error {
 					s = strings.TrimSpace(s)

@@ -57,7 +57,7 @@ func init() {
 	RootCmd.Flags().BoolVarP(&flagDryRun, "dry-run", "d", false, "Preview changes without applying")
 	RootCmd.Flags().BoolVarP(&flagNoBackup, "no-backup", "n", false, "Skip backup creation")
 	RootCmd.Flags().BoolVarP(&flagVerbose, "verbose", "V", false, "Verbose output")
-	RootCmd.Flags().IntVarP(&flagOffset, "offset", "o", 0, "Episode number offset (db_num = local_num + offset)")
+	RootCmd.Flags().IntVarP(&flagOffset, "offset", "o", 0, "Shift episode numbers (e.g. 12 to map Ep 1 to 13) (DB = Local + Offset)")
 	RootCmd.Flags().StringVarP(&flagFillerURL, "filler", "F", "", "Override filler source URL")
 	RootCmd.Flags().BoolVarP(&flagForce, "force", "f", false, "Force database refresh")
 	RootCmd.Flags().BoolVarP(&flagNoTag, "no-tag", "T", false, "Disable MKV metadata tagging (mkvpropedit)")

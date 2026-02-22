@@ -164,6 +164,7 @@ func RunInitWizard(ctx context.Context, absPath string, scan *config.ScanResult,
 				refinementFields = append(refinementFields,
 					huh.NewInput().
 						Title("Separator").
+						Placeholder(" ").
 						Description("\nCharacter(s) between output fields").
 						Value(&separator),
 				)
@@ -172,7 +173,7 @@ func RunInitWizard(ctx context.Context, absPath string, scan *config.ScanResult,
 				refinementFields = append(refinementFields,
 					huh.NewInput().
 						Title("Episode offset").
-						Description("\nOptional. Maps local → DB episode numbers").
+						Description("\nShift episode numbers (DB = Local + Offset).\nUse 12 to map Local E01 to Database E13.\n").
 						Value(&offsetStr).
 						Validate(validateInt),
 				)
