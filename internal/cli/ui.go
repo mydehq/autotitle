@@ -13,6 +13,7 @@ import (
 	"github.com/mydehq/autotitle"
 	"github.com/mydehq/autotitle/internal/config"
 	"github.com/mydehq/autotitle/internal/matcher"
+	"github.com/mydehq/autotitle/internal/provider/filler"
 	"github.com/mydehq/autotitle/internal/types"
 	"github.com/spf13/cobra"
 	"gopkg.in/yaml.v3"
@@ -148,7 +149,7 @@ func runInitWizard(ctx context.Context, cmd *cobra.Command, absPath string, scan
 			paddingStr := "0"
 			offsetStr := "0"
 			separator := " "
-			fillerURL := deriveFillerURL(selectedURL)
+			fillerURL := filler.DeriveURLFromProvider(selectedURL)
 
 			if cmd != nil && cmd.Flags().Changed("filler") {
 				fillerURL = flagInitFillerURL
@@ -238,13 +239,10 @@ func runInitWizard(ctx context.Context, cmd *cobra.Command, absPath string, scan
 			}
 
 			// Save config
-			defaults := config.GetDefaults()
-			mapFileName := defaults.MapFile
-			mapPath := filepath.Join(absPath, mapFileName)
-
-			if err := config.Save(mapPath, cfg); err != nil {
+			if err := config.SaveToDir(absPath, cfg); err != nil {
 				return fmt.Errorf("failed to save config: %w", err)
 			}
+			mapPath := filepath.Join(absPath, config.GetDefaults().MapFile)
 			logger.Info(fmt.Sprintf("%s: %s", StyleHeader.Render("Created config"), StylePath.Render(mapPath)))
 
 			// ─Offer DB generation
@@ -426,19 +424,23 @@ func selectOutputFields(theme *huh.Theme) ([]string, error) {
 		fields []string
 	}
 	presets := []preset{
-		{"Default  (E + EP_NUM FILLER - EP_NAME)", []string{"E", "+", "EP_NUM", "FILLER", "-", "EP_NAME"}},
-		{"Minimal  (EP_NUM - EP_NAME)", []string{"EP_NUM", "-", "EP_NAME"}},
-		{"Full     (SERIES - EP_NUM - EP_NAME)", []string{"SERIES", "-", "EP_NUM", "-", "EP_NAME"}},
+		{"Default", []string{"E", "+", "EP_NUM", "FILLER", "-", "EP_NAME"}},
+		{"Minimal", []string{"EP_NUM", "-", "EP_NAME"}},
+		{"Full", []string{"SERIES", "-", "EP_NUM", "-", "EP_NAME"}},
 		{"Custom", nil},
 	}
 
 	opts := make([]huh.Option[string], len(presets))
 	for i, p := range presets {
 		val := strings.Join(p.fields, ",")
-		if p.fields == nil {
+		label := p.name
+		if p.fields != nil {
+			preview := buildFilenamePreview(p.fields, " ")
+			label = fmt.Sprintf("%-8s (%s)", p.name, preview)
+		} else {
 			val = "__custom__"
 		}
-		opts[i] = huh.NewOption(p.name, val)
+		opts[i] = huh.NewOption(label, val)
 	}
 
 	choice := ""
@@ -492,54 +494,22 @@ func selectOutputFields(theme *huh.Theme) ([]string, error) {
 
 // buildFilenamePreview creates an example filename using mock episode data.
 func buildFilenamePreview(outputFields []string, separator string) string {
-	// Build from output fields with mock data
-	fieldMap := map[string]string{
-		"SERIES":    "Bleach",
-		"SERIES_EN": "Bleach",
-		"SERIES_JP": "ブリーチ",
-		"EP_NUM":    "01",
-		"EP_NAME":   "The Day I Became a Shinigami",
-		"FILLER":    "",
-		"RES":       "1080p",
-		"E":         "E",
-		"+":         "",
-		"-":         "-",
-	}
-
-	var parts []string
-	for _, f := range outputFields {
-		if val, ok := fieldMap[f]; ok {
-			if val != "" {
-				parts = append(parts, val)
-			}
-		} else {
-			// Literal
-			parts = append(parts, f)
-		}
+	vars := matcher.TemplateVars{
+		Series:   "Bleach",
+		SeriesEn: "Bleach",
+		SeriesJp: "ブリーチ",
+		EpNum:    "1",
+		EpName:   "The Day I Became a Shinigami",
+		Res:      "1080p",
+		Ext:      "mkv",
 	}
 
 	if separator == "" {
 		separator = " "
 	}
 
-	return strings.Join(parts, separator) + ".mkv"
-}
-
-// deriveFillerURL derives an AnimeFillerList URL from the selected provider URL.
-func deriveFillerURL(providerURL string) string {
-	// Extract a series name from the URL and convert to filler-list slug
-	// e.g. https://myanimelist.net/anime/269/Bleach → bleach
-	parts := strings.Split(providerURL, "/")
-	if len(parts) > 0 {
-		slug := parts[len(parts)-1]
-		slug = strings.ToLower(slug)
-		slug = strings.ReplaceAll(slug, "_", "-")
-		slug = strings.ReplaceAll(slug, " ", "-")
-		if slug != "" {
-			return fmt.Sprintf("https://www.animefillerlist.com/shows/%s", slug)
-		}
-	}
-	return ""
+	name, _ := matcher.GenerateFilenameFromFields(outputFields, separator, vars, 2)
+	return name
 }
 
 // showPreviewAndConfirm marshals the config to YAML and shows a confirmation prompt.

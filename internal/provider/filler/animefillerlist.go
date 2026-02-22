@@ -62,6 +62,22 @@ func (s *AnimeFillerListSource) ExtractSlug(url string) (string, error) {
 	return "", fmt.Errorf("could not extract slug from URL: %s", url)
 }
 
+// DeriveURLFromProvider predicts an AnimeFillerList URL from a provider URL (e.g. MAL).
+func DeriveURLFromProvider(providerURL string) string {
+	parts := strings.Split(providerURL, "/")
+	if len(parts) == 0 {
+		return ""
+	}
+	slug := parts[len(parts)-1]
+	if slug == "" {
+		return ""
+	}
+	slug = strings.ToLower(slug)
+	slug = strings.ReplaceAll(slug, "_", "-")
+	slug = strings.ReplaceAll(slug, " ", "-")
+	return fmt.Sprintf("%s/%s", fillerListURL, slug)
+}
+
 // FetchFillers fetches filler episode numbers from AnimeFillerList
 func (s *AnimeFillerListSource) FetchFillers(ctx context.Context, slug string) ([]int, error) {
 	url := fmt.Sprintf("%s/%s", fillerListURL, slug)

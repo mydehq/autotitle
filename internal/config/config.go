@@ -182,6 +182,12 @@ func Save(path string, cfg *types.Config) error {
 	return nil
 }
 
+// SaveToDir saves configuration to the default map file in the specified directory
+func SaveToDir(dir string, cfg *types.Config) error {
+	path := filepath.Join(dir, defaults.MapFile)
+	return Save(path, cfg)
+}
+
 // Validate validates the configuration
 func Validate(cfg *types.Config) error {
 	if len(cfg.Targets) == 0 {
