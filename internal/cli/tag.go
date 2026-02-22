@@ -7,6 +7,7 @@ import (
 
 	"github.com/mydehq/autotitle"
 	"github.com/mydehq/autotitle/internal/tagger"
+	"github.com/mydehq/autotitle/internal/ui"
 	"github.com/spf13/cobra"
 )
 
@@ -46,13 +47,13 @@ func runTag(cmd *cobra.Command, path string) {
 		autotitle.WithEvents(func(e autotitle.Event) {
 			switch e.Type {
 			case autotitle.EventInfo:
-				logger.Info(fmt.Sprintf("%s: %s", StyleHeader.Render("Tag"), e.Message))
+				logger.Info(fmt.Sprintf("%s: %s", ui.StyleHeader.Render("Tag"), e.Message))
 			case autotitle.EventSuccess:
-				logger.Info(fmt.Sprintf("%s: %s", StyleHeader.Render("Tagged"), e.Message))
+				logger.Info(fmt.Sprintf("%s: %s", ui.StyleHeader.Render("Tagged"), e.Message))
 			case autotitle.EventWarning:
-				logger.Warn(fmt.Sprintf("%s: %s", StyleHeader.Render("Tag Warning"), e.Message))
+				logger.Warn(fmt.Sprintf("%s: %s", ui.StyleHeader.Render("Tag Warning"), e.Message))
 			case autotitle.EventError:
-				logger.Error(fmt.Sprintf("%s: %s", StyleHeader.Render("Tag Error"), e.Message))
+				logger.Error(fmt.Sprintf("%s: %s", ui.StyleHeader.Render("Tag Error"), e.Message))
 			}
 		}),
 	}

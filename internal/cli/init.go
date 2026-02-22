@@ -9,6 +9,7 @@ import (
 	"github.com/mattn/go-isatty"
 	"github.com/mydehq/autotitle"
 	"github.com/mydehq/autotitle/internal/config"
+	"github.com/mydehq/autotitle/internal/ui"
 	"github.com/spf13/cobra"
 )
 
@@ -54,7 +55,7 @@ func runInit(cmd *cobra.Command, path string) {
 	isTTY := isatty.IsTerminal(os.Stdout.Fd()) || isatty.IsCygwinTerminal(os.Stdout.Fd())
 
 	// Non-interactive: --url provided OR not a TTY
-	if flagInitURL == "" && !isTTY { 
+	if flagInitURL == "" && !isTTY {
 		logger.Error("URL required in non-interactive mode (use --url)")
 		os.Exit(1)
 	}
@@ -65,7 +66,7 @@ func runInit(cmd *cobra.Command, path string) {
 	}
 
 	// Interactive path
-	ClearAndPrintBanner()
+	ui.ClearAndPrintBanner(flagDryRun)
 
 	// Load defaults to find map file name
 	defaults := config.GetDefaults()
@@ -75,21 +76,21 @@ func runInit(cmd *cobra.Command, path string) {
 	// Check for existing map file
 	if _, err := os.Stat(mapPath); err == nil && !flagInitForce {
 		overwrite := false
-		err := RunForm(huh.NewForm(
+		err := ui.RunForm(huh.NewForm(
 			huh.NewGroup(
 				huh.NewConfirm().
 					Title("Config already exists").
-					Description(fmt.Sprintf("Overwrite %s?", StylePath.Render(mapPath))).
+					Description(fmt.Sprintf("Overwrite %s?", ui.StylePath.Render(mapPath))).
 					Value(&overwrite),
 			),
-		).WithTheme(autotitleTheme()))
+		).WithTheme(ui.AutotitleTheme()))
 		if err != nil {
-			handleAbort(err)
+			ui.HandleAbort(err)
 			logger.Error("Init failed", "error", err)
 			os.Exit(1)
 		}
 		if !overwrite {
-			logger.Info(StyleDim.Render("Init cancelled"))
+			logger.Info(ui.StyleDim.Render("Init cancelled"))
 			return
 		}
 	}
@@ -102,7 +103,20 @@ func runInit(cmd *cobra.Command, path string) {
 	}
 
 	// Run the wizard
-	if err := runInitWizard(cmd.Context(), cmd, absPath, scanResult); err != nil {
+	flags := ui.InitFlags{
+		URL:          flagInitURL,
+		FillerURL:    flagInitFillerURL,
+		HasFiller:    cmd.Flags().Changed("filler"),
+		Separator:    flagInitSeparator,
+		HasSeparator: cmd.Flags().Changed("separator"),
+		Offset:       flagInitOffset,
+		HasOffset:    cmd.Flags().Changed("offset"),
+		Padding:      flagInitPadding,
+		HasPadding:   cmd.Flags().Changed("padding"),
+		DryRun:       flagDryRun,
+	}
+
+	if err := ui.RunInitWizard(cmd.Context(), absPath, scanResult, flags); err != nil {
 		logger.Error("Init failed", "error", err)
 		os.Exit(1)
 	}
@@ -129,5 +143,5 @@ func runInitNonInteractive(cmd *cobra.Command, absPath string) {
 
 	defaults := config.GetDefaults()
 	mapFile := defaults.MapFile
-	logger.Info(fmt.Sprintf("%s: %s", StyleHeader.Render("Created config"), StylePath.Render(filepath.Join(absPath, mapFile))))
+	logger.Info(fmt.Sprintf("%s: %s", ui.StyleHeader.Render("Created config"), ui.StylePath.Render(filepath.Join(absPath, mapFile))))
 }

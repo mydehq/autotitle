@@ -5,6 +5,7 @@ import (
 	"os"
 
 	"github.com/mydehq/autotitle"
+	"github.com/mydehq/autotitle/internal/ui"
 	"github.com/spf13/cobra"
 )
 
@@ -28,5 +29,5 @@ func runUndo(cmd *cobra.Command, path string) {
 		os.Exit(1)
 	}
 	fmt.Println()
-	logger.Info(StyleHeader.Render("Files restored from backup"))
+	logger.Info(ui.StyleHeader.Render("Files restored from backup"))
 }

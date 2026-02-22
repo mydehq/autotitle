@@ -7,6 +7,7 @@ import (
 
 	"github.com/charmbracelet/log"
 	"github.com/mydehq/autotitle"
+	"github.com/mydehq/autotitle/internal/ui"
 	"github.com/mydehq/autotitle/internal/version"
 	"github.com/spf13/cobra"
 )
@@ -64,10 +65,11 @@ func init() {
 
 	// Default logger setup (before flags parse)
 	logger = log.New(os.Stdout)
-	configureStyles()
+	ui.SetLogger(logger)
+	ui.ConfigureLoggerStyles()
 
 	autotitle.SetDefaultEventHandler(func(e autotitle.Event) {
-		msg := colorizeEvent(e.Message)
+		msg := ui.ColorizeEvent(e.Message)
 		switch e.Type {
 		case autotitle.EventSuccess:
 			logger.Info(msg)
@@ -145,9 +147,9 @@ func runRename(ctx context.Context, cmd *cobra.Command, path string) {
 	if !flagQuiet {
 		fmt.Println()
 		logger.Info(fmt.Sprintf("Summary: renamed=%s skipped=%s failed=%s",
-			StyleCommand.Render(fmt.Sprint(success)),
-			StylePattern.Render(fmt.Sprint(skipped)),
-			styleFlag.Render(fmt.Sprint(failed)),
+			ui.StyleCommand.Render(fmt.Sprint(success)),
+			ui.StylePattern.Render(fmt.Sprint(skipped)),
+			ui.StyleFlag.Render(fmt.Sprint(failed)),
 		))
 	}
 }

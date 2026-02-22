@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/mydehq/autotitle"
+	"github.com/mydehq/autotitle/internal/ui"
 	"github.com/spf13/cobra"
 )
 
@@ -93,9 +94,9 @@ func runDBGen(ctx context.Context, url string) {
 	}
 
 	if generated {
-		logger.Info(fmt.Sprintf("%s: %s", StyleHeader.Render("Database generated"), StylePath.Render(url)))
+		logger.Info(fmt.Sprintf("%s: %s", ui.StyleHeader.Render("Database generated"), ui.StylePath.Render(url)))
 	} else {
-		logger.Info(fmt.Sprintf("%s: %s", StyleHeader.Render("Database cached"), StylePath.Render(url)))
+		logger.Info(fmt.Sprintf("%s: %s", ui.StyleHeader.Render("Database cached"), ui.StylePath.Render(url)))
 	}
 }
 
@@ -111,14 +112,14 @@ func runDBList(ctx context.Context) {
 		return
 	}
 
-	logger.Info(fmt.Sprintf("%s count: %s", StyleHeader.Render("Cached databases"), StylePattern.Render(fmt.Sprint(len(items)))))
+	logger.Info(fmt.Sprintf("%s count: %s", ui.StyleHeader.Render("Cached databases"), ui.StylePattern.Render(fmt.Sprint(len(items)))))
 	for _, item := range items {
 		logger.Print(fmt.Sprintf("  %s %s/%s: %s %s",
-			StyleDim.Render("-"),
-			StyleHeader.Render(item.Provider),
-			StylePath.Render(item.ID),
+			ui.StyleDim.Render("-"),
+			ui.StyleHeader.Render(item.Provider),
+			ui.StylePath.Render(item.ID),
 			item.Title,
-			StyleDim.Render(fmt.Sprintf("(%d episodes)", item.EpisodeCount)),
+			ui.StyleDim.Render(fmt.Sprintf("(%d episodes)", item.EpisodeCount)),
 		))
 	}
 }
@@ -141,12 +142,12 @@ func runDBInfo(ctx context.Context, target string) {
 		os.Exit(1)
 	}
 
-	keyStyle := StyleHeader.Width(15)
+	keyStyle := ui.StyleHeader.Width(15)
 
 	logger.Print(fmt.Sprintf("%s %s", keyStyle.Render("Title:"), media.Title))
 	logger.Print(fmt.Sprintf("%s %d", keyStyle.Render("Episodes:"), len(media.Episodes)))
-	logger.Print(fmt.Sprintf("%s %s", keyStyle.Render("ID:"), StylePath.Render(media.ID)))
-	logger.Print(fmt.Sprintf("%s %s", keyStyle.Render("Provider:"), StylePattern.Render(media.Provider)))
+	logger.Print(fmt.Sprintf("%s %s", keyStyle.Render("ID:"), ui.StylePath.Render(media.ID)))
+	logger.Print(fmt.Sprintf("%s %s", keyStyle.Render("Provider:"), ui.StylePattern.Render(media.Provider)))
 	if media.FillerSource != "" {
 		logger.Print(fmt.Sprintf("%s %s", keyStyle.Render("Filler Source:"), media.FillerSource))
 	}
@@ -158,7 +159,7 @@ func runDBRm(ctx context.Context, args []string) {
 			logger.Error("Failed to delete all databases", "error", err)
 			os.Exit(1)
 		}
-		logger.Info(StyleHeader.Render("Deleted all databases"))
+		logger.Info(ui.StyleHeader.Render("Deleted all databases"))
 		return
 	}
 
@@ -178,7 +179,7 @@ func runDBRm(ctx context.Context, args []string) {
 		logger.Error("Failed to delete database", "error", err)
 		os.Exit(1)
 	}
-	logger.Info(fmt.Sprintf("%s: %s/%s", StyleHeader.Render("Deleted database"), prov, StylePath.Render(id)))
+	logger.Info(fmt.Sprintf("%s: %s/%s", ui.StyleHeader.Render("Deleted database"), prov, ui.StylePath.Render(id)))
 }
 
 func runDBPath() {

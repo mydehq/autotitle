@@ -1,4 +1,4 @@
-package cli
+package ui
 
 import (
 	"errors"
@@ -8,7 +8,6 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/huh"
 	"github.com/charmbracelet/lipgloss"
-	"github.com/charmbracelet/log"
 )
 
 var (
@@ -44,7 +43,7 @@ var (
 	StylePath    = lipgloss.NewStyle().Foreground(colorPath)
 	StylePattern = lipgloss.NewStyle().Foreground(colorPattern)
 	StyleDim     = lipgloss.NewStyle().Foreground(colorDim)
-	styleFlag    = lipgloss.NewStyle().Italic(true).Foreground(colorFlag)
+	StyleFlag    = lipgloss.NewStyle().Italic(true).Foreground(colorFlag)
 
 	// StyleBanner is the main wizard title banner
 	StyleBanner = lipgloss.NewStyle().
@@ -56,38 +55,12 @@ var (
 			Align(lipgloss.Center)
 )
 
-func configureStyles() {
-	styles := log.DefaultStyles()
-
-	styles.Levels[log.DebugLevel] = lipgloss.NewStyle().
-		SetString("DEBUG").
-		Bold(true).
-		Foreground(lipgloss.Color("63"))
-
-	styles.Levels[log.InfoLevel] = lipgloss.NewStyle().
-		SetString("INFO ").
-		Bold(true).
-		Foreground(lipgloss.Color("86"))
-
-	styles.Levels[log.WarnLevel] = lipgloss.NewStyle().
-		SetString("WARN ").
-		Bold(true).
-		Foreground(lipgloss.Color("192"))
-
-	styles.Levels[log.ErrorLevel] = lipgloss.NewStyle().
-		SetString("ERROR").
-		Bold(true).
-		Foreground(lipgloss.Color("204"))
-
-	logger.SetStyles(styles)
-}
-
-// autotitleTheme returns the Catppuccin theme for huh forms.
-func autotitleTheme() *huh.Theme {
+// AutotitleTheme returns the Catppuccin theme for huh forms.
+func AutotitleTheme() *huh.Theme {
 	return huh.ThemeCatppuccin()
 }
 
-func autotitleKeyMap() *huh.KeyMap {
+func AutotitleKeyMap() *huh.KeyMap {
 	km := huh.NewDefaultKeyMap()
 
 	// Map both to Quit; we will distinguish them via a bubbletea filter
@@ -132,20 +105,19 @@ func RunForm(f *huh.Form) error {
 }
 
 // ClearAndPrintBanner clears the terminal and prints the AutoTitle header.
-func ClearAndPrintBanner() {
+func ClearAndPrintBanner(dryRun bool) {
 	fmt.Print("\033[H\033[2J")
 	fmt.Println()
 	fmt.Println(StyleBanner.Render("AutoTitle"))
 	fmt.Println()
-	// flagDryRun is in init.go but same package cli
-	if flagDryRun {
-		fmt.Println(styleFlag.Render("  [DRY RUN]"))
+	if dryRun {
+		fmt.Println(StyleFlag.Render("  [DRY RUN]"))
 		fmt.Println()
 	}
 }
 
-// colorizeEvent adds CLI styling to known event message patterns.
-func colorizeEvent(msg string) string {
+// ColorizeEvent adds CLI styling to known event message patterns.
+func ColorizeEvent(msg string) string {
 	// Messages with "→" (rename/restore): "Renamed: old.mkv → new.mkv"
 	if parts := strings.SplitN(msg, " → ", 2); len(parts) == 2 {
 		left := parts[0]
