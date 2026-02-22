@@ -127,9 +127,15 @@ func runInit(cmd *cobra.Command, path string) {
 		ctx = cmd.Context()
 	}
 
-	if err := ui.RunInitWizard(ctx, absPath, scanResult, flags); err != nil {
+	startRename, err := ui.RunInitWizard(ctx, absPath, scanResult, flags)
+	if err != nil {
 		logger.Error("Init failed", "error", err)
 		os.Exit(1)
+	}
+
+	if startRename {
+		logger.Info(ui.StyleHeader.Render("Starting renaming..."))
+		runRename(ctx, cmd, absPath)
 	}
 }
 

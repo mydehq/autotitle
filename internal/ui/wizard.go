@@ -31,7 +31,8 @@ type InitFlags struct {
 
 // RunInitWizard orchestrates the full interactive init wizard.
 // search → select → patterns → preview → confirm.
-func RunInitWizard(ctx context.Context, absPath string, scan *config.ScanResult, flags InitFlags) error {
+// Returns true if the user wants to start renaming immediately.
+func RunInitWizard(ctx context.Context, absPath string, scan *config.ScanResult, flags InitFlags) (bool, error) {
 	theme := AutotitleTheme()
 
 	// Wizard State
@@ -84,7 +85,7 @@ func RunInitWizard(ctx context.Context, absPath string, scan *config.ScanResult,
 					}
 					os.Exit(0)
 				}
-				return err
+				return false, err
 			}
 			step++
 
@@ -96,7 +97,7 @@ func RunInitWizard(ctx context.Context, absPath string, scan *config.ScanResult,
 					step--
 					continue
 				}
-				return err
+				return false, err
 			}
 			if url == "" {
 				// No results or user chose manual entry
@@ -106,7 +107,7 @@ func RunInitWizard(ctx context.Context, absPath string, scan *config.ScanResult,
 					if errors.Is(HandleAbort(manualErr), ErrUserBack) {
 						continue
 					}
-					return manualErr
+					return false, manualErr
 				}
 			} else {
 				selectedURL = url
@@ -129,7 +130,7 @@ func RunInitWizard(ctx context.Context, absPath string, scan *config.ScanResult,
 					step--
 					continue
 				}
-				return err
+				return false, err
 			}
 			step++
 
@@ -142,7 +143,7 @@ func RunInitWizard(ctx context.Context, absPath string, scan *config.ScanResult,
 					step--
 					continue
 				}
-				return err
+				return false, err
 			}
 			step++
 
@@ -155,7 +156,7 @@ func RunInitWizard(ctx context.Context, absPath string, scan *config.ScanResult,
 					step--
 					continue
 				}
-				return err
+				return false, err
 			}
 			step++
 
@@ -180,7 +181,7 @@ func RunInitWizard(ctx context.Context, absPath string, scan *config.ScanResult,
 					step--
 					continue
 				}
-				return err
+				return false, err
 			}
 			step++
 
@@ -204,7 +205,7 @@ func RunInitWizard(ctx context.Context, absPath string, scan *config.ScanResult,
 					step--
 					continue
 				}
-				return err
+				return false, err
 			}
 			step++
 
@@ -244,7 +245,7 @@ func RunInitWizard(ctx context.Context, absPath string, scan *config.ScanResult,
 						step--
 						continue
 					}
-					return err
+					return false, err
 				}
 			}
 			step++
@@ -266,7 +267,7 @@ func RunInitWizard(ctx context.Context, absPath string, scan *config.ScanResult,
 					step-- // go back
 					continue
 				}
-				return err
+				return false, err
 			}
 			if !confirmed {
 				fmt.Println()
@@ -274,17 +275,17 @@ func RunInitWizard(ctx context.Context, absPath string, scan *config.ScanResult,
 					logger.Warn(StyleDim.Render("Init cancelled"))
 				}
 				os.Exit(0)
-				return nil
+				return false, nil
 			}
 
 			// Save config
 			if err := config.SaveToDir(absPath, cfg); err != nil {
-				return fmt.Errorf("failed to save config: %w", err)
+				return false, fmt.Errorf("failed to save config: %w", err)
 			}
 			step++
 
 		case 9:
-			// Final success and DB generation offer
+			// Final success and ask to start renaming
 			mapPath := filepath.Join(absPath, config.GetDefaults().MapFile)
 
 			if logger != nil {
@@ -292,45 +293,22 @@ func RunInitWizard(ctx context.Context, absPath string, scan *config.ScanResult,
 				fmt.Println()
 			}
 
-			// Offer DB generation
-			fetchDB := true
+			// Offer renaming
+			startRename := true
 			err := RunForm(huh.NewForm(
 				huh.NewGroup(
 					huh.NewConfirm().
-						Title("Fetch database now?").
-						Description("Download episode data from the provider to enable renaming.").
-						Value(&fetchDB),
+						Title("Start renaming now?").
+						Description("Match and rename local files based on database titles.").
+						Value(&startRename),
 				),
 			).WithTheme(theme).WithKeyMap(AutotitleKeyMap()))
 
 			if err != nil {
-				return HandleAbort(err) // No going back from the final success screen
+				return false, HandleAbort(err) // No going back from the final success screen
 			}
 
-			if !fetchDB {
-				return nil
-			}
-
-			// Perform DB Generation
-			if flags.DryRun {
-				if logger != nil {
-					logger.Warn(StyleDim.Render("[DRY RUN] Skipping DB generation"))
-				}
-				return nil // done!
-			}
-
-			if logger != nil {
-				logger.Info(StyleHeader.Render("Fetching database..."))
-			}
-			_, err = autotitle.DBGen(ctx, selectedURL, autotitle.WithFiller(fillerURL), autotitle.WithForce())
-			if err != nil {
-				return fmt.Errorf("failed to generate database: %w", err)
-			}
-
-			if logger != nil {
-				logger.Success(StyleHeader.Render("Database generated successfully"))
-			}
-			return nil
+			return startRename, nil
 		}
 	}
 }

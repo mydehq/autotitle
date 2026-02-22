@@ -206,6 +206,12 @@ func Rename(ctx context.Context, path string, opts ...Option) ([]types.RenameOpe
 		dbGenOpts = append(dbGenOpts, WithForce())
 	}
 
+	if force {
+		options.emit(types.EventInfo, "Force refreshing database...")
+	} else if !db.Exists(prov.Name(), id) {
+		options.emit(types.EventInfo, "Database not found; fetching data...")
+	}
+
 	_, genErr := DBGen(ctx, target.URL, dbGenOpts...)
 	if genErr != nil {
 		options.emit(types.EventWarning, fmt.Sprintf("Failed to update database: %v", genErr))
