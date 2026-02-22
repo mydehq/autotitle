@@ -10,6 +10,7 @@ var (
 	reCRC       = regexp.MustCompile(`\[[A-Fa-f0-9]{8}\]`)
 	reRes       = regexp.MustCompile(`(?i)\b(\d{3,4}p|\d{3,4}x\d{3,4})\b`)
 	reSxxExx    = regexp.MustCompile(`(?i)(\bS\s*\d+\s*[Ex]\s*)(\d+)`)
+	reXxEyy     = regexp.MustCompile(`(?i)(\b\d+\s*[Ex]\s*)(\d+)`)
 	rePrefix    = regexp.MustCompile(`(?i)(\bEpisode\s*|\bEp\.?\s*|\bE\s*| - )(\d+)`)
 	reNumber    = regexp.MustCompile(`\d+`)
 	reBracketed = regexp.MustCompile(`\[([^\]]+)\]`)
@@ -73,10 +74,14 @@ func GuessPattern(filename string) string {
 	if reSxxExx.MatchString(pattern) {
 		pattern = reSxxExx.ReplaceAllString(pattern, "${1}{{EP_NUM}}")
 		matched = true
+	} else if reXxEyy.MatchString(pattern) {
+		// handle 01x01 format specifically to avoid greedy rePrefix matches
+		pattern = reXxEyy.ReplaceAllString(pattern, "${1}{{EP_NUM}}")
+		matched = true
 	}
 
 	// Prefix patterns like " - 01" or " Episode 01" - replace all occurrences
-	if rePrefix.MatchString(pattern) {
+	if !matched && rePrefix.MatchString(pattern) {
 		pattern = rePrefix.ReplaceAllString(pattern, "${1}{{EP_NUM}}")
 		matched = true
 	}
