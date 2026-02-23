@@ -42,6 +42,16 @@ func (s *AnimeFillerListSource) Name() string {
 	return "animefillerlist"
 }
 
+// Website returns the filler source's website URL
+func (s *AnimeFillerListSource) Website() string {
+	return "https://animefillerlist.com"
+}
+
+// SupportedURLs returns the URL patterns this source handles
+func (s *AnimeFillerListSource) SupportedURLs() []string {
+	return aflURLPatterns
+}
+
 // MatchesURL returns true if this source can handle the given URL
 func (s *AnimeFillerListSource) MatchesURL(url string) bool {
 	for _, pattern := range aflURLPatterns {
@@ -62,6 +72,22 @@ func (s *AnimeFillerListSource) ExtractSlug(url string) (string, error) {
 	return "", fmt.Errorf("could not extract slug from URL: %s", url)
 }
 
+// DeriveURLFromProvider predicts an AnimeFillerList URL from a provider URL (e.g. MAL).
+func DeriveURLFromProvider(providerURL string) string {
+	parts := strings.Split(providerURL, "/")
+	if len(parts) == 0 {
+		return ""
+	}
+	slug := parts[len(parts)-1]
+	if slug == "" {
+		return ""
+	}
+	slug = strings.ToLower(slug)
+	slug = strings.ReplaceAll(slug, "_", "-")
+	slug = strings.ReplaceAll(slug, " ", "-")
+	return fmt.Sprintf("%s/%s", fillerListURL, slug)
+}
+
 // FetchFillers fetches filler episode numbers from AnimeFillerList
 func (s *AnimeFillerListSource) FetchFillers(ctx context.Context, slug string) ([]int, error) {
 	url := fmt.Sprintf("%s/%s", fillerListURL, slug)
@@ -73,9 +99,9 @@ func (s *AnimeFillerListSource) FetchFillers(ctx context.Context, slug string) (
 	// Add User-Agent to avoid blocking
 	req.Header.Set("User-Agent", "Mozilla/5.0 (compatible; Autotitle/2.0; +https://github.com/mydehq/autotitle)")
 
-	resp, err := s.client.Do(req)
+	resp, err := provider.DoWithRetry(ctx, s.client, req, "AnimeFillerList", nil)
 	if err != nil {
-		return nil, fmt.Errorf("failed to fetch filler list: %w", err)
+		return nil, err
 	}
 	defer func() { _ = resp.Body.Close() }()
 

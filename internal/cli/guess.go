@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 
 	"github.com/mydehq/autotitle/internal/config"
+	"github.com/mydehq/autotitle/internal/ui"
 	"github.com/spf13/cobra"
 )
 
@@ -49,12 +50,12 @@ func runGuessPattern(path string) {
 	}
 
 	if !scanResult.HasMedia {
-		fmt.Printf("No media files found in: %s\n", StylePath.Render(absPath))
+		fmt.Printf("No media files found in: %s\n", ui.StylePath.Render(absPath))
 		return
 	}
 
-	fmt.Printf("%s in: %s\n", StyleHeader.Render("Detected patterns"), StylePath.Render(absPath))
+	fmt.Printf("%s in: %s\n", ui.StyleHeader.Render("Detected patterns"), ui.StylePath.Render(absPath))
 	for _, p := range scanResult.DetectedPatterns {
-		fmt.Printf(" %s %s\n", StyleDim.Render("-"), StylePattern.Render(p))
+		fmt.Printf(" %s %s\n", ui.StyleDim.Render("-"), ui.StylePattern.Render(p))
 	}
 }

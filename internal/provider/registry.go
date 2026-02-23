@@ -81,3 +81,19 @@ func ListFillerSources() []string {
 	}
 	return names
 }
+
+// FillerSourceInfo holds metadata about a registered filler source
+type FillerSourceInfo struct {
+	Name      string
+	Website   string
+	MatchURLs []string
+}
+
+// ListFillerSourceDetails returns all registered filler sources with their supported URLs
+func ListFillerSourceDetails() []FillerSourceInfo {
+	infos := make([]FillerSourceInfo, len(fillerSources))
+	for i, s := range fillerSources {
+		infos[i] = FillerSourceInfo{Name: s.Name(), Website: s.Website(), MatchURLs: s.SupportedURLs()}
+	}
+	return infos
+}

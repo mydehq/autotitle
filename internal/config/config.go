@@ -52,8 +52,8 @@ var defaultMapFile = types.Config{
 	Targets: []types.Target{
 		{
 			Path:      ".",
-			URL:       "https://myanimelist.net/anime/XXXXX/Series_Name",
-			FillerURL: "https://www.animefillerlist.com/shows/series-name",
+			URL:       "",
+			FillerURL: "",
 			Patterns:  defaults.Patterns,
 		},
 	},
@@ -103,6 +103,9 @@ func swapYAMLExtension(path string) string {
 func LoadFile(path string) (*types.Config, error) {
 	data, err := os.ReadFile(path)
 	if err != nil {
+		if os.IsNotExist(err) {
+			return nil, types.ErrConfigNotFound{Path: path}
+		}
 		return nil, fmt.Errorf("failed to read map file: %w", err)
 	}
 
@@ -182,6 +185,12 @@ func Save(path string, cfg *types.Config) error {
 	return nil
 }
 
+// SaveToDir saves configuration to the default map file in the specified directory
+func SaveToDir(dir string, cfg *types.Config) error {
+	path := filepath.Join(dir, defaults.MapFile)
+	return Save(path, cfg)
+}
+
 // Validate validates the configuration
 func Validate(cfg *types.Config) error {
 	if len(cfg.Targets) == 0 {
@@ -224,9 +233,7 @@ func GenerateDefault(url, fillerURL string, inputPatterns []string, separator st
 		target.URL = url
 	}
 
-	if fillerURL != "" {
-		target.FillerURL = fillerURL
-	}
+	target.FillerURL = fillerURL
 
 	// If input patterns are provided, we only want those.
 	if len(inputPatterns) > 0 {

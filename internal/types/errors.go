@@ -41,6 +41,15 @@ func (e ErrConfigInvalid) Error() string {
 	return fmt.Sprintf("invalid config %s: %s", e.Path, e.Reason)
 }
 
+// ErrConfigNotFound indicates a configuration file doesn't exist
+type ErrConfigNotFound struct {
+	Path string
+}
+
+func (e ErrConfigNotFound) Error() string {
+	return fmt.Sprintf("configuration file not found: %s", e.Path)
+}
+
 // ErrProviderNotFound indicates no provider matches the given URL
 type ErrProviderNotFound struct {
 	URL string

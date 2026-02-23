@@ -5,6 +5,7 @@ import (
 	"os"
 
 	"github.com/mydehq/autotitle"
+	"github.com/mydehq/autotitle/internal/ui"
 	"github.com/spf13/cobra"
 )
 
@@ -31,7 +32,7 @@ func runClean(cmd *cobra.Command, args []string) {
 			logger.Error("Failed to clean global backups", "error", err)
 			os.Exit(1)
 		}
-		logger.Info(StyleHeader.Render("Removed all backups globally"))
+		logger.Success(ui.StyleHeader.Render("Removed all backups globally"))
 		return
 	}
 
@@ -44,5 +45,5 @@ func runClean(cmd *cobra.Command, args []string) {
 		logger.Error("Failed to remove backup", "path", args[0], "error", err)
 		os.Exit(1)
 	}
-	logger.Info(fmt.Sprintf("%s: %s", StyleHeader.Render("Removed backup"), StylePath.Render(args[0])))
+	logger.Success(fmt.Sprintf("%s: %s", ui.StyleHeader.Render("Removed backup"), ui.StylePath.Render(args[0])))
 }

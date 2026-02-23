@@ -17,3 +17,4 @@ _backup/
 BKP/
 *tui/
 *.code-workspace
+implementation_plan.md.resolved

@@ -5,9 +5,11 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/charmbracelet/lipgloss"
+	"github.com/charmbracelet/huh"
 	"github.com/charmbracelet/log"
 	"github.com/mydehq/autotitle"
+	"github.com/mydehq/autotitle/internal/types"
+	"github.com/mydehq/autotitle/internal/ui"
 	"github.com/mydehq/autotitle/internal/version"
 	"github.com/spf13/cobra"
 )
@@ -22,7 +24,7 @@ var (
 	flagFillerURL string
 	flagForce     bool
 
-	logger *log.Logger
+	logger *ui.Logger
 )
 
 var RootCmd = &cobra.Command{
@@ -31,11 +33,19 @@ var RootCmd = &cobra.Command{
 	Version:       version.String(),
 	SilenceErrors: true,
 	SilenceUsage:  true,
-	Args:          cobra.ExactArgs(1),
+	Args:          cobra.MaximumNArgs(1),
 	PersistentPreRun: func(cmd *cobra.Command, args []string) {
 		setupLogger()
 	},
 	Run: func(cmd *cobra.Command, args []string) {
+		if len(args) == 0 {
+			logger.Error("No path provided.\n")
+			fmt.Println(ui.StyleHeader.Render("Try running:"))
+			fmt.Printf("    %s %s\n", ui.StyleCommand.Render("autotitle ."), ui.StyleDim.Render("  Process current directory"))
+			fmt.Printf("    %s %s\n", ui.StyleCommand.Render("autotitle -h"), ui.StyleDim.Render(" Show all commands and flags"))
+			fmt.Println()
+			os.Exit(1)
+		}
 		runRename(cmd.Context(), cmd, args[0])
 	},
 }
@@ -57,26 +67,29 @@ func init() {
 	RootCmd.Flags().BoolVarP(&flagDryRun, "dry-run", "d", false, "Preview changes without applying")
 	RootCmd.Flags().BoolVarP(&flagNoBackup, "no-backup", "n", false, "Skip backup creation")
 	RootCmd.Flags().BoolVarP(&flagVerbose, "verbose", "V", false, "Verbose output")
-	RootCmd.Flags().IntVarP(&flagOffset, "offset", "o", 0, "Episode number offset (db_num = local_num + offset)")
+	RootCmd.Flags().IntVarP(&flagOffset, "offset", "o", 0, "Shift episode numbers (e.g. 12 to map Ep 1 to 13) (DB = Local + Offset)")
 	RootCmd.Flags().StringVarP(&flagFillerURL, "filler", "F", "", "Override filler source URL")
 	RootCmd.Flags().BoolVarP(&flagForce, "force", "f", false, "Force database refresh")
 	RootCmd.Flags().BoolVarP(&flagNoTag, "no-tag", "T", false, "Disable MKV metadata tagging (mkvpropedit)")
 	RootCmd.PersistentFlags().BoolVarP(&flagQuiet, "quiet", "q", false, "Suppress output except errors")
 
 	// Default logger setup (before flags parse)
-	logger = log.New(os.Stdout)
-	configureStyles()
+	l := log.New(os.Stdout)
+	ui.SetLogger(l)
+	ui.ConfigureLoggerStyles()
+	logger = &ui.Logger{Logger: l}
 
 	autotitle.SetDefaultEventHandler(func(e autotitle.Event) {
+		msg := ui.ColorizeEvent(e.Message)
 		switch e.Type {
 		case autotitle.EventSuccess:
-			logger.Info(e.Message)
+			logger.Success(msg)
 		case autotitle.EventWarning:
-			logger.Warn(e.Message)
+			logger.Warn(msg)
 		case autotitle.EventError:
-			logger.Error(e.Message)
+			logger.Error(msg)
 		default:
-			logger.Debug(e.Message)
+			logger.Debug(msg)
 		}
 	})
 
@@ -84,32 +97,6 @@ func init() {
 
 	// Pre-register version flag with -v shorthand.
 	RootCmd.Flags().BoolP("version", "v", false, "Print version information")
-}
-
-func configureStyles() {
-	styles := log.DefaultStyles()
-
-	styles.Levels[log.DebugLevel] = lipgloss.NewStyle().
-		SetString("DEBUG").
-		Bold(true).
-		Foreground(lipgloss.Color("63"))
-
-	styles.Levels[log.InfoLevel] = lipgloss.NewStyle().
-		SetString("INFO ").
-		Bold(true).
-		Foreground(lipgloss.Color("86"))
-
-	styles.Levels[log.WarnLevel] = lipgloss.NewStyle().
-		SetString("WARN ").
-		Bold(true).
-		Foreground(lipgloss.Color("192"))
-
-	styles.Levels[log.ErrorLevel] = lipgloss.NewStyle().
-		SetString("ERROR").
-		Bold(true).
-		Foreground(lipgloss.Color("204"))
-
-	logger.SetStyles(styles)
 }
 
 func setupLogger() {
@@ -150,6 +137,25 @@ func runRename(ctx context.Context, cmd *cobra.Command, path string) {
 
 	ops, err := autotitle.Rename(ctx, path, opts...)
 	if err != nil {
+		if _, ok := err.(types.ErrConfigNotFound); ok {
+			logger.Error(fmt.Sprintf("No %s found in %s", ui.StylePattern.Render("_autotitle.yml"), ui.StylePath.Render(path)))
+			fmt.Println()
+			confirmInit := true
+			err := ui.RunForm(huh.NewForm(
+				huh.NewGroup(
+					huh.NewConfirm().
+						Title("Initialize now?").
+						Description("Start the setup wizard to create a new configuration.").
+						Value(&confirmInit),
+				),
+			).WithTheme(ui.AutotitleTheme()).WithKeyMap(ui.AutotitleKeyMap()))
+
+			if err == nil && confirmInit {
+				runInit(cmd, path)
+				return
+			}
+			os.Exit(0)
+		}
 		logger.Error("Operation failed", "error", err)
 		os.Exit(1)
 	}
@@ -171,9 +177,9 @@ func runRename(ctx context.Context, cmd *cobra.Command, path string) {
 	if !flagQuiet {
 		fmt.Println()
 		logger.Info(fmt.Sprintf("Summary: renamed=%s skipped=%s failed=%s",
-			StyleCommand.Render(fmt.Sprint(success)),
-			StylePattern.Render(fmt.Sprint(skipped)),
-			styleFlag.Render(fmt.Sprint(failed)),
+			ui.StyleCommand.Render(fmt.Sprint(success)),
+			ui.StylePattern.Render(fmt.Sprint(skipped)),
+			ui.StyleFlag.Render(fmt.Sprint(failed)),
 		))
 	}
 }

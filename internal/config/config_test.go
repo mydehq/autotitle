@@ -137,8 +137,26 @@ func TestGenerateDefault(t *testing.T) {
 	if target.URL != "https://myanimelist.net/anime/12345" {
 		t.Errorf("unexpected URL: %s", target.URL)
 	}
+	if target.FillerURL != "https://animefillerlist.com/shows/test" {
+		t.Errorf("unexpected FillerURL: %s", target.FillerURL)
+	}
 	if len(target.Patterns) != 1 {
 		t.Errorf("expected 1 pattern, got %d", len(target.Patterns))
+	}
+}
+
+func TestGenerateDefaultEmptyFiller(t *testing.T) {
+	cfg := GenerateDefault(
+		"https://myanimelist.net/anime/12345",
+		"",
+		[]string{"Episode {{EP_NUM}}"},
+		"",
+		0,
+		0,
+	)
+
+	if cfg.Targets[0].FillerURL != "" {
+		t.Errorf("expected empty FillerURL, got %s", cfg.Targets[0].FillerURL)
 	}
 }
 

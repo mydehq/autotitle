@@ -60,6 +60,11 @@ func (p *MALProvider) Name() string {
 	return "mal"
 }
 
+// Website returns the provider's website URL
+func (p *MALProvider) Website() string {
+	return "https://myanimelist.net"
+}
+
 // Configure updates provider settings
 func (p *MALProvider) Configure(cfg *types.APIConfig) {
 	if cfg == nil {
@@ -76,6 +81,11 @@ func (p *MALProvider) Configure(cfg *types.APIConfig) {
 // Type returns the media type this provider handles
 func (p *MALProvider) Type() types.MediaType {
 	return types.MediaTypeAnime
+}
+
+// SupportedURLs returns the URL patterns this provider handles
+func (p *MALProvider) SupportedURLs() []string {
+	return malURLPatterns
 }
 
 // MatchesURL returns true if this provider can handle the given URL
@@ -223,15 +233,9 @@ func (p *MALProvider) fetchEpisodes(ctx context.Context, malID int) ([]types.Epi
 			return nil, err
 		}
 
-		resp, err := p.client.Do(req)
+		resp, err := DoWithRetry(ctx, p.client, req, "Jikan", p.sleep)
 		if err != nil {
-			return nil, fmt.Errorf("failed to fetch episodes: %w", err)
-		}
-
-		if resp.StatusCode == 429 {
-			_ = resp.Body.Close()
-			time.Sleep(2 * time.Second)
-			continue
+			return nil, err
 		}
 
 		if resp.StatusCode != http.StatusOK {
@@ -280,28 +284,23 @@ func (p *MALProvider) fetchEpisodes(ctx context.Context, malID int) ([]types.Epi
 func (p *MALProvider) Search(ctx context.Context, query string) ([]types.SearchResult, error) {
 	p.sleep()
 
-	urlStr := fmt.Sprintf("%s/anime?q=%s&limit=5", jikanAPIURL, url.QueryEscape(query))
+	urlStr := fmt.Sprintf("%s/anime?q=%s", jikanAPIURL, url.QueryEscape(query))
 	req, err := http.NewRequestWithContext(ctx, "GET", urlStr, nil)
 	if err != nil {
 		return nil, err
 	}
 
-	resp, err := p.client.Do(req)
+	resp, err := DoWithRetry(ctx, p.client, req, "Jikan", p.sleep)
 	if err != nil {
-		return nil, fmt.Errorf("failed to search anime: %w", err)
+		return nil, err
 	}
 	defer func() { _ = resp.Body.Close() }()
 
-	if resp.StatusCode == 429 {
-		time.Sleep(2 * time.Second)
-		return p.Search(ctx, query)
-	}
-
 	if resp.StatusCode != http.StatusOK {
 		return nil, types.ErrAPIError{
-			Service:    "Jikan Search",
+			Service:    "Jikan",
 			StatusCode: resp.StatusCode,
-			Message:    fmt.Sprintf("failed to search for %q", query),
+			Message:    "failed to search anime",
 		}
 	}
 

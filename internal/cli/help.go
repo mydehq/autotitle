@@ -3,6 +3,7 @@ package cli
 import (
 	"regexp"
 
+	"github.com/mydehq/autotitle/internal/ui"
 	"github.com/spf13/cobra"
 )
 
@@ -33,23 +34,23 @@ const coloredUsageTmpl = `{{Header "Usage:"}}
 
 func colorizeHelp(cmd *cobra.Command) {
 	cobra.AddTemplateFunc("Header", func(s string) string {
-		out := StyleHeader.Render(s)
+		out := ui.StyleHeader.Render(s)
 		if s == "Usage:" {
 			return "\n" + out
 		}
 		return out
 	})
-	cobra.AddTemplateFunc("Command", func(s string) string { return StyleCommand.Render(s) })
+	cobra.AddTemplateFunc("Command", func(s string) string { return ui.StyleCommand.Render(s) })
 
 	// Flags function colorizes individual flag names and dimmed separators
 	cobra.AddTemplateFunc("Flags", func(s string) string {
 		reFlags := regexp.MustCompile(`(-\w|--[\w-]+)`)
 		s = reFlags.ReplaceAllStringFunc(s, func(match string) string {
-			return styleFlag.Render(match)
+			return ui.StyleFlag.Render(match)
 		})
 
 		reSep := regexp.MustCompile(`, `)
-		s = reSep.ReplaceAllString(s, StyleDim.Render(", "))
+		s = reSep.ReplaceAllString(s, ui.StyleDim.Render(", "))
 
 		return s
 	})
@@ -59,19 +60,19 @@ func colorizeHelp(cmd *cobra.Command) {
 		// Colorize <args> (required) - Blue (StylePath)
 		reArgs := regexp.MustCompile(`<[a-zA-Z0-9_-]+>`)
 		s = reArgs.ReplaceAllStringFunc(s, func(match string) string {
-			return StylePath.Render(match)
+			return ui.StylePath.Render(match)
 		})
 
 		// Colorize [args] (optional/flags) - Bright Dimmed (StyleDim)
 		reOptional := regexp.MustCompile(`\[[a-zA-Z0-9_-]+\]`)
 		s = reOptional.ReplaceAllStringFunc(s, func(match string) string {
-			return StyleDim.Render(match)
+			return ui.StyleDim.Render(match)
 		})
 
 		// Colorize the command name (beginning of the line) - Cyan (StyleCommand)
 		reCmd := regexp.MustCompile(`^\w+`)
 		s = reCmd.ReplaceAllStringFunc(s, func(match string) string {
-			return StyleCommand.Render(match)
+			return ui.StyleCommand.Render(match)
 		})
 
 		return s

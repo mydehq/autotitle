@@ -8,8 +8,14 @@ type Provider interface {
 	// Name returns the provider identifier (e.g., "mal", "tmdb")
 	Name() string
 
+	// Website returns the provider's website URL
+	Website() string
+
 	// Type returns the media type this provider handles
 	Type() MediaType
+
+	// SupportedURLs returns the URL patterns this provider handles
+	SupportedURLs() []string
 
 	// MatchesURL returns true if this provider can handle the given URL
 	MatchesURL(url string) bool
@@ -34,12 +40,19 @@ type SearchResult struct {
 	Title    string
 	Year     int
 	URL      string
+	Error    error
 }
 
 // FillerSource is a source for filler episode data (decoupled from providers)
 type FillerSource interface {
 	// Name returns the filler source identifier
 	Name() string
+
+	// Website returns the filler source's website URL
+	Website() string
+
+	// SupportedURLs returns the URL patterns this source handles
+	SupportedURLs() []string
 
 	// MatchesURL returns true if this source can handle the given URL
 	MatchesURL(url string) bool
