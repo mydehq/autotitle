@@ -366,6 +366,7 @@ func promptFillerURL(theme *huh.Theme, derived string) (string, error) {
 
 			huh.NewInput().
 				Title("Filler URL").
+				Placeholder(derived).
 				Description("\nIf this series has fillers, add filler list URL here.\nLeave empty to skip.\n").
 				Value(&url).
 				Validate(func(s string) error {
